@@ -1414,13 +1414,111 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
 }
 
 
-/* ===== V49: pagamentos atrasados no painel ===== */
-.v49OverdueList{
+/* ===== V50: painel v48 + quadro grande + pagamentos atrasados estáveis ===== */
+.v50Hero{
+  display:grid;
+  grid-template-columns:1.15fr .85fr;
+  gap:18px;
+  align-items:stretch;
+  margin:0 0 18px;
+}
+.v50HeroMain{
+  min-height:230px;
+  border-radius:30px;
+  padding:28px;
+  background:
+    linear-gradient(110deg,rgba(255,253,248,.99),rgba(255,253,248,.90) 55%,rgba(255,253,248,.28)),
+    url("https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?q=80&w=1600&auto=format&fit=crop") center/cover;
+  border:1px solid var(--line);
+  box-shadow:var(--shadow);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+.v50HeroMain small{
+  color:var(--gold);
+  font-size:12px;
+  font-weight:950;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+.v50HeroMain h3{
+  color:var(--txt)!important;
+  font-size:42px!important;
+  line-height:.98;
+  letter-spacing:-.065em;
+  margin:10px 0!important;
+}
+.v50HeroMain p{
+  color:#475467;
+  max-width:720px;
+  font-size:16px;
+  line-height:1.55;
+  margin:0;
+}
+.v50HeroSide{
+  border-radius:30px;
+  padding:24px;
+  background:#101828;
+  color:#fff;
+  box-shadow:var(--shadow);
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+}
+.v50HeroSide h3{
+  color:#fff!important;
+  font-size:26px!important;
+  line-height:1.05;
+  letter-spacing:-.045em;
+  margin:0 0 10px!important;
+}
+.v50HeroSide p{
+  color:#d1d5db;
+  margin:0;
+  line-height:1.55;
+}
+.v50HeroSide strong{
+  color:#f3c77a!important;
+  font-size:34px;
+  letter-spacing:-.06em;
+}
+.v50PanelGrid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+  margin-top:18px;
+}
+.v50PanelCard{
+  background:#fffdf8;
+  border:1px solid var(--line);
+  border-radius:26px;
+  padding:22px;
+  box-shadow:var(--shadow);
+}
+.v50PanelCard h3{
+  margin:0 0 14px!important;
+  color:var(--txt)!important;
+  font-size:24px!important;
+}
+#kpis{
+  display:grid!important;
+  grid-template-columns:repeat(5,1fr)!important;
+  gap:14px!important;
+  margin:0 0 18px!important;
+}
+#funil{
+  display:grid!important;
+  grid-template-columns:repeat(2,1fr)!important;
+  gap:12px!important;
+  min-height:120px!important;
+}
+#homeProjects,#v50OverdueList{
   display:grid!important;
   gap:12px!important;
-  min-height:80px!important;
+  min-height:120px!important;
 }
-.v49OverdueCard{
+.v50Overdue{
   background:#fffdf8;
   border:1px solid #fecaca;
   border-left:7px solid #dc2626;
@@ -1428,23 +1526,17 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
   padding:16px;
   box-shadow:0 8px 24px rgba(34,28,20,.045);
 }
-.v49OverdueTop{
+.v50OverdueTop{
   display:flex;
   justify-content:space-between;
   gap:12px;
   align-items:flex-start;
 }
-.v49OverdueTop b{
-  color:var(--txt)!important;
-  font-size:18px;
-}
-.v49OverdueTop strong{
-  color:#991b1b;
-  white-space:nowrap;
-}
-.v49OverdueCard .mini{
-  margin:6px 0 10px;
-  display:block;
+.v50OverdueTop b{color:var(--txt)!important;font-size:18px}
+.v50OverdueTop strong{color:#991b1b;white-space:nowrap}
+@media(max-width:1050px){
+  .v50Hero,.v50PanelGrid,#kpis,#funil{grid-template-columns:1fr!important}
+  .v50HeroMain h3{font-size:34px!important}
 }
 
 </style>
@@ -2898,7 +2990,7 @@ init();
 
 
 <script>
-/* ===== V49: acrescenta pagamentos atrasados no painel ===== */
+/* ===== V50: painel completo em cima da v48 estável ===== */
 (function(){
   function moneySafe(v){
     try { return (Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
@@ -2913,11 +3005,15 @@ init();
     if(Array.isArray(b.payments)) return b.payments.reduce((s,p)=>s+(Number(p.value)||0),0);
     return Number(b.received)||0;
   }
-  function isOverduePayment(b){
-    const c = calcSafe(b);
-    const due = b.paymentDue || '';
-    if(!due) return false;
-    return (Number(c.final)||0) > paidSafe(b) && new Date(due + 'T23:59:59') < new Date();
+  function progressSafe(id){
+    try { if(typeof progress === 'function') return progress(id); } catch(e){}
+    const tasks=(window.state?.tasks||[]).filter(t=>t.projectId===id);
+    if(!tasks.length) return 0;
+    return Math.round(tasks.filter(t=>t.status==='Concluída').length/tasks.length*100);
+  }
+  function prazoSafe(b){
+    try { if(typeof prazoInfo === 'function') return prazoInfo(b).txt; } catch(e){}
+    return b.entrega || 'Sem prazo';
   }
   function brDateSafe(d){
     try { if(typeof brDate === 'function') return brDate(d); } catch(e){}
@@ -2925,77 +3021,145 @@ init();
     const [y,m,day] = String(d).slice(0,10).split('-');
     return day && m && y ? `${day}/${m}/${y}` : '-';
   }
-
-  function patchOverduePanel(){
-    const kpisEl = document.getElementById('kpis');
-    const homeEl = document.getElementById('homeProjects');
-    if(!kpisEl || !homeEl || !window.state) return;
-
-    const budgets = Array.isArray(state.budgets) ? state.budgets : [];
-    const closed = budgets.filter(b=>b.status==='Fechado');
-    const overdue = closed.filter(isOverduePayment);
-
-    // adiciona/atualiza o KPI de pagamentos atrasados
-    let old = document.getElementById('v49OverdueKpi');
-    if(!old){
-      old = document.createElement('div');
-      old.id = 'v49OverdueKpi';
-      old.className = 'v48Kpi';
-      kpisEl.appendChild(old);
-    }
-    old.innerHTML = `<strong>${overdue.length}</strong><span>Pagamentos atrasados</span>`;
-
-    // cria a guia abaixo de projetos em andamento
-    let box = document.getElementById('v49OverdueBox');
-    if(!box){
-      const panelCard = document.createElement('div');
-      panelCard.className = 'card';
-      panelCard.id = 'v49OverdueBox';
-      panelCard.style.marginTop = '18px';
-      panelCard.innerHTML = `<h3>Pagamentos atrasados</h3><div id="v49OverdueList" class="v49OverdueList"></div>`;
-      const parent = homeEl.closest('.card') || homeEl.parentElement;
-      parent.insertAdjacentElement('afterend', panelCard);
-      box = panelCard;
-    }
-
-    const list = document.getElementById('v49OverdueList');
-    if(!list) return;
-
-    list.innerHTML = overdue.length ? overdue.map(b=>{
-      const c = calcSafe(b);
-      const paid = paidSafe(b);
-      const rest = Math.max(0, c.final - paid);
-      return `
-        <div class="v49OverdueCard">
-          <div class="v49OverdueTop">
-            <div>
-              <b>${b.cliente || 'Cliente'}</b>
-              <span class="mini">${(b.projetos||[]).join(', ')} • vencimento: ${brDateSafe(b.paymentDue)}</span>
-            </div>
-            <strong>${moneySafe(rest)}</strong>
-          </div>
-          <div class="btns" style="margin-top:12px">
-            <button class="btn primary" onclick="go('financeiro')">Abrir financeiro</button>
-            <button class="btn" onclick="openProposal('${b.id}')">Proposta</button>
-          </div>
-        </div>`;
-    }).join('') : '<div class="v48Empty">Nenhum pagamento atrasado.</div>';
+  function isOverduePayment(b){
+    const c = calcSafe(b);
+    const due = b.paymentDue || '';
+    if(!due) return false;
+    return (Number(c.final)||0) > paidSafe(b) && new Date(due + 'T23:59:59') < new Date();
   }
 
-  const oldRenderPanelV49 = window.renderPanel;
-  window.renderPanel = function(){
-    if(oldRenderPanelV49) oldRenderPanelV49();
-    patchOverduePanel();
-  };
+  function renderPanelV50(){
+    const panel = document.getElementById('painel');
+    if(!panel || !panel.classList.contains('active')) return;
 
-  const oldRenderAllV49 = window.renderAll;
+    const budgets = Array.isArray(window.state?.budgets) ? window.state.budgets : [];
+    const tasks = Array.isArray(window.state?.tasks) ? window.state.tasks : [];
+
+    const open = budgets.filter(b=>b.status==='Aberto');
+    const closed = budgets.filter(b=>b.status==='Fechado');
+    const lost = budgets.filter(b=>b.status==='Perdido');
+    const active = closed.filter(b=>(b.projectStatus||'Ativo')==='Ativo');
+    const overdue = closed.filter(isOverduePayment);
+    const pendingTasks = tasks.filter(t=>t.status!=='Concluída').length;
+    const toReceive = closed.reduce((s,b)=>s+Math.max(0,calcSafe(b).final-paidSafe(b)),0);
+    const overdueValue = overdue.reduce((s,b)=>s+Math.max(0,calcSafe(b).final-paidSafe(b)),0);
+
+    const top = panel.querySelector('.top');
+    if(top && !document.getElementById('v50Hero')){
+      top.insertAdjacentHTML('afterend', `
+        <div id="v50Hero" class="v50Hero">
+          <div class="v50HeroMain">
+            <small>JM NETO ENGENHARIA</small>
+            <h3>Controle do escritório em tempo real.</h3>
+            <p>Veja comercial, projetos, tarefas e pagamentos sem precisar ficar abrindo aba por aba.</p>
+            <div class="btns" style="margin-top:20px">
+              <button class="btn primary" onclick="go('orcamento')">Novo orçamento</button>
+              <button class="btn" onclick="go('financeiro')">Financeiro</button>
+              <button class="btn" onclick="go('projetos')">Projetos</button>
+            </div>
+          </div>
+          <div class="v50HeroSide">
+            <div>
+              <h3>Recebimento pendente</h3>
+              <p>Total que ainda falta entrar nos projetos fechados.</p>
+            </div>
+            <strong id="v50HeroReceive">${moneySafe(toReceive)}</strong>
+          </div>
+        </div>
+      `);
+    }
+
+    if(document.getElementById('v50HeroReceive')){
+      v50HeroReceive.textContent = moneySafe(toReceive);
+    }
+
+    let kpisEl = document.getElementById('kpis');
+    let funilEl = document.getElementById('funil');
+    let homeEl = document.getElementById('homeProjects');
+
+    if(!kpisEl || !funilEl || !homeEl) return;
+
+    kpisEl.innerHTML = `
+      <div class="v48Kpi"><strong>${active.length}</strong><span>Projetos em andamento</span></div>
+      <div class="v48Kpi"><strong>${pendingTasks}</strong><span>Tarefas pendentes</span></div>
+      <div class="v48Kpi"><strong>${moneySafe(toReceive)}</strong><span>Valor a receber</span></div>
+      <div class="v48Kpi"><strong>${open.length}</strong><span>Propostas em aberto</span></div>
+      <div class="v48Kpi"><strong>${overdue.length}</strong><span>Pagamentos atrasados</span></div>
+    `;
+
+    funilEl.innerHTML = `
+      <div class="v48Funnel open"><small>Abertos</small><strong>${open.length}</strong><span>${moneySafe(open.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
+      <div class="v48Funnel closed"><small>Fechados</small><strong>${closed.length}</strong><span>${moneySafe(closed.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
+      <div class="v48Funnel lost"><small>Perdidos</small><strong>${lost.length}</strong><span>${moneySafe(lost.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
+      <div class="v48Funnel total"><small>Total no sistema</small><strong>${budgets.length}</strong><span>${moneySafe(budgets.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
+    `;
+
+    homeEl.innerHTML = active.length ? active.map(b=>{
+      const p = progressSafe(b.id);
+      return `
+        <div class="v48Project">
+          <div class="v48ProjectTop">
+            <div>
+              <b>${b.cliente || 'Cliente'}</b>
+              <div class="mini">${(b.projetos||[]).join(', ')} • ${prazoSafe(b)}</div>
+            </div>
+            <strong>${moneySafe(calcSafe(b).final)}</strong>
+          </div>
+          <div class="bar" style="margin-top:10px"><i style="width:${p}%"></i></div>
+          <div class="btns" style="margin-top:12px">
+            <button class="btn primary" onclick="state.selectedProject='${b.id}';go('tarefas')">Tarefas</button>
+            <button class="btn" onclick="go('financeiro')">Financeiro</button>
+          </div>
+        </div>
+      `;
+    }).join('') : '<div class="v48Empty">Nenhum projeto em andamento.</div>';
+
+    let overdueBox = document.getElementById('v50OverdueBox');
+    if(!overdueBox){
+      const homeCard = homeEl.closest('.card');
+      if(homeCard){
+        homeCard.insertAdjacentHTML('afterend', `
+          <div id="v50OverdueBox" class="card" style="margin-top:18px">
+            <h3>Pagamentos atrasados</h3>
+            <div id="v50OverdueList"></div>
+          </div>
+        `);
+      }
+    }
+
+    const list = document.getElementById('v50OverdueList');
+    if(list){
+      list.innerHTML = overdue.length ? overdue.map(b=>{
+        const rest = Math.max(0,calcSafe(b).final-paidSafe(b));
+        return `
+          <div class="v50Overdue">
+            <div class="v50OverdueTop">
+              <div>
+                <b>${b.cliente || 'Cliente'}</b>
+                <span class="mini">${(b.projetos||[]).join(', ')} • vencimento: ${brDateSafe(b.paymentDue)}</span>
+              </div>
+              <strong>${moneySafe(rest)}</strong>
+            </div>
+            <div class="btns" style="margin-top:12px">
+              <button class="btn primary" onclick="go('financeiro')">Abrir financeiro</button>
+            </div>
+          </div>
+        `;
+      }).join('') : '<div class="v48Empty">Nenhum pagamento atrasado.</div>';
+    }
+  }
+
+  window.renderPanel = renderPanelV50;
+
+  const oldRenderAll = window.renderAll;
   window.renderAll = function(){
-    oldRenderAllV49();
-    patchOverduePanel();
+    oldRenderAll();
+    renderPanelV50();
   };
 
-  setTimeout(patchOverduePanel, 100);
-  setTimeout(patchOverduePanel, 500);
+  document.addEventListener('DOMContentLoaded', renderPanelV50);
+  setTimeout(renderPanelV50, 100);
+  setTimeout(renderPanelV50, 500);
 })();
 </script>
 
