@@ -1196,6 +1196,121 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
   flex-wrap:wrap;
 }
 
+
+/* ===== V47 PAINEL REAL NOS BLOCOS EXISTENTES ===== */
+.dashboardHero{
+  display:none!important;
+}
+#kpis{
+  display:grid!important;
+  grid-template-columns:repeat(4,1fr)!important;
+  gap:14px!important;
+  margin-bottom:18px!important;
+}
+#kpis .v47Kpi{
+  background:#fffdf8;
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:20px;
+  box-shadow:0 12px 32px rgba(34,28,20,.055);
+}
+#kpis .v47Kpi strong{
+  display:block;
+  color:var(--txt)!important;
+  font-size:31px;
+  line-height:1;
+  letter-spacing:-.055em;
+}
+#kpis .v47Kpi span{
+  display:block;
+  color:var(--mut);
+  font-size:13px;
+  margin-top:7px;
+}
+#funil{
+  display:grid!important;
+  grid-template-columns:repeat(2,1fr)!important;
+  gap:12px!important;
+}
+.v47FunnelCard{
+  background:#fffdf8;
+  border:1px solid var(--line);
+  border-radius:20px;
+  padding:16px;
+  box-shadow:0 8px 24px rgba(34,28,20,.045);
+}
+.v47FunnelCard small{
+  display:block;
+  color:var(--mut);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  font-weight:900;
+  margin-bottom:7px;
+}
+.v47FunnelCard strong{
+  display:block;
+  color:var(--txt)!important;
+  font-size:28px;
+  letter-spacing:-.05em;
+}
+.v47FunnelCard span{
+  display:block;
+  margin-top:5px;
+  color:#8a5d15;
+  font-weight:850;
+}
+.v47FunnelCard.open{border-top:5px solid #2563eb}
+.v47FunnelCard.neg{border-top:5px solid #d97706}
+.v47FunnelCard.closed{border-top:5px solid #16a34a}
+.v47FunnelCard.lost{border-top:5px solid #dc2626}
+#homeProjects{
+  display:grid!important;
+  gap:12px!important;
+}
+.v47Project{
+  background:#fffdf8;
+  border:1px solid var(--line);
+  border-left:7px solid var(--gold);
+  border-radius:22px;
+  padding:16px;
+  box-shadow:0 8px 24px rgba(34,28,20,.045);
+}
+.v47ProjectTop{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+}
+.v47ProjectTop b{
+  color:var(--txt)!important;
+  font-size:18px;
+}
+.v47ProjectTop strong{
+  color:#8a5d15;
+  white-space:nowrap;
+}
+.v47Project .mini{
+  margin:6px 0 10px;
+  display:block;
+}
+.v47Actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:12px;
+}
+.v47Empty{
+  color:var(--mut);
+  background:#fbf7f0;
+  border:1px dashed #d8ccba;
+  border-radius:18px;
+  padding:16px;
+}
+@media(max-width:1050px){
+  #kpis,#funil{grid-template-columns:1fr!important}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -2439,4 +2554,96 @@ renderPanel = function(){
 
 init();
 </script>
+
+<script>
+/* ===== V47: alimenta KPIs, funil e projetos da aba Painel ===== */
+(function(){
+  function v47Panel(){
+    if(!document.getElementById('kpis') || !document.getElementById('funil') || !document.getElementById('homeProjects')) return;
+
+    const budgets = state.budgets || [];
+    const closed = closedProjects();
+    const active = activeProjects();
+
+    const open = budgets.filter(b=>b.status==='Aberto');
+    const negotiating = budgets.filter(b=>b.status==='Negociando');
+    const lost = budgets.filter(b=>b.status==='Perdido');
+
+    const overduePay = closed.filter(b=>jmFinanceStatus(b)==='overdue');
+    const lateProjects = active.filter(b=>prazoInfo(b).cls==='bad');
+    const pendingTasks = state.tasks.filter(t=>t.status!=='Concluída').length;
+    const receive = jmMoneyOpen();
+
+    kpis.innerHTML = `
+      <div class="v47Kpi"><strong>${active.length}</strong><span>Projetos em andamento</span></div>
+      <div class="v47Kpi"><strong>${lateProjects.length}</strong><span>Projetos atrasados</span></div>
+      <div class="v47Kpi"><strong>${pendingTasks}</strong><span>Tarefas pendentes</span></div>
+      <div class="v47Kpi"><strong>${money(receive)}</strong><span>Valor a receber</span></div>
+    `;
+
+    funil.innerHTML = `
+      <div class="v47FunnelCard open">
+        <small>Abertos</small>
+        <strong>${open.length}</strong>
+        <span>${money(open.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
+      </div>
+
+      <div class="v47FunnelCard neg">
+        <small>Negociando</small>
+        <strong>${negotiating.length}</strong>
+        <span>${money(negotiating.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
+      </div>
+
+      <div class="v47FunnelCard closed">
+        <small>Fechados</small>
+        <strong>${closed.length}</strong>
+        <span>${money(closed.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
+      </div>
+
+      <div class="v47FunnelCard lost">
+        <small>Perdidos</small>
+        <strong>${lost.length}</strong>
+        <span>${money(lost.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
+      </div>
+    `;
+
+    homeProjects.innerHTML = active.length ? active.map(b=>{
+      const p = progress(b.id);
+      const c = calcFrom(b);
+      return `
+        <div class="v47Project">
+          <div class="v47ProjectTop">
+            <div>
+              <b>${b.cliente}</b>
+              <span class="mini">${(b.projetos||[]).join(', ')} • ${prazoInfo(b).txt}</span>
+            </div>
+            <strong>${money(c.final)}</strong>
+          </div>
+
+          <div class="bar">
+            <i style="width:${p}%"></i>
+          </div>
+
+          <div class="v47Actions">
+            <button class="btn primary" onclick="state.selectedProject='${b.id}';go('tarefas')">Tarefas</button>
+            <button class="btn" onclick="go('financeiro')">Financeiro</button>
+            <button class="btn" onclick="openProposal('${b.id}')">Proposta</button>
+          </div>
+        </div>
+      `;
+    }).join('') : '<div class="v47Empty">Nenhum projeto em andamento.</div>';
+  }
+
+  renderPanel = v47Panel;
+
+  const oldRenderAllV47 = renderAll;
+  renderAll = function(){
+    oldRenderAllV47();
+    v47Panel();
+  };
+
+  setTimeout(v47Panel, 50);
+})();
+</script>
+
 </body></html>
