@@ -1311,6 +1311,108 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
   #kpis,#funil{grid-template-columns:1fr!important}
 }
 
+
+/* ===== V48 PAINEL FORÇADO E ESTÁVEL ===== */
+#kpis{
+  display:grid!important;
+  grid-template-columns:repeat(4,1fr)!important;
+  gap:14px!important;
+  margin:0 0 18px!important;
+}
+.v48Kpi{
+  background:#fffdf8;
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:20px;
+  box-shadow:0 12px 32px rgba(34,28,20,.055);
+}
+.v48Kpi strong{
+  display:block;
+  color:var(--txt)!important;
+  font-size:31px;
+  line-height:1;
+  letter-spacing:-.055em;
+}
+.v48Kpi span{
+  display:block;
+  color:var(--mut);
+  font-size:13px;
+  margin-top:7px;
+}
+#funil{
+  display:grid!important;
+  grid-template-columns:repeat(2,1fr)!important;
+  gap:12px!important;
+  min-height:120px!important;
+}
+.v48Funnel{
+  background:#fffdf8;
+  border:1px solid var(--line);
+  border-radius:20px;
+  padding:16px;
+  box-shadow:0 8px 24px rgba(34,28,20,.045);
+}
+.v48Funnel small{
+  display:block;
+  color:var(--mut);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  font-weight:900;
+  margin-bottom:7px;
+}
+.v48Funnel strong{
+  display:block;
+  color:var(--txt)!important;
+  font-size:28px;
+  letter-spacing:-.05em;
+}
+.v48Funnel span{
+  color:#8a5d15;
+  font-weight:850;
+}
+.v48Funnel.open{border-top:5px solid #2563eb}
+.v48Funnel.closed{border-top:5px solid #16a34a}
+.v48Funnel.lost{border-top:5px solid #dc2626}
+.v48Funnel.total{border-top:5px solid #b98534}
+#homeProjects{
+  display:grid!important;
+  gap:12px!important;
+  min-height:120px!important;
+}
+.v48Project{
+  background:#fffdf8;
+  border:1px solid var(--line);
+  border-left:7px solid var(--gold);
+  border-radius:22px;
+  padding:16px;
+  box-shadow:0 8px 24px rgba(34,28,20,.045);
+}
+.v48ProjectTop{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+}
+.v48ProjectTop b{
+  color:var(--txt)!important;
+  font-size:18px;
+}
+.v48ProjectTop strong{
+  color:#8a5d15;
+  white-space:nowrap;
+}
+.v48Empty{
+  color:var(--mut);
+  background:#fbf7f0;
+  border:1px dashed #d8ccba;
+  border-radius:18px;
+  padding:16px;
+}
+@media(max-width:1050px){
+  #kpis,#funil{grid-template-columns:1fr!important}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -2643,6 +2745,120 @@ init();
   };
 
   setTimeout(v47Panel, 50);
+})();
+</script>
+
+
+<script>
+/* ===== V48: painel sem depender de funções antigas que podem falhar ===== */
+(function(){
+  function moneySafe(v){
+    try{
+      return (Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    }catch(e){
+      return 'R$ ' + (Number(v)||0).toFixed(2);
+    }
+  }
+
+  function calcSafe(b){
+    try{
+      if(typeof calcFrom === 'function') return calcFrom(b);
+    }catch(e){}
+    return {final:Number(b.negociado || b.valor || 0) || 0};
+  }
+
+  function paidSafe(b){
+    try{
+      if(typeof paymentTotal === 'function') return paymentTotal(b);
+    }catch(e){}
+    if(Array.isArray(b.payments)) return b.payments.reduce((s,p)=>s+(Number(p.value)||0),0);
+    return Number(b.received)||0;
+  }
+
+  function progressSafe(id){
+    try{
+      if(typeof progress === 'function') return progress(id);
+    }catch(e){}
+    const tasks=(window.state?.tasks||[]).filter(t=>t.projectId===id);
+    if(!tasks.length) return 0;
+    return Math.round(tasks.filter(t=>t.status==='Concluída').length/tasks.length*100);
+  }
+
+  function prazoSafe(b){
+    try{
+      if(typeof prazoInfo === 'function') return prazoInfo(b).txt;
+    }catch(e){}
+    return b.entrega || 'Sem prazo';
+  }
+
+  function renderPanelV48(){
+    const kpisEl = document.getElementById('kpis');
+    const funilEl = document.getElementById('funil');
+    const homeEl = document.getElementById('homeProjects');
+
+    if(!kpisEl || !funilEl || !homeEl) return;
+
+    const budgets = Array.isArray(window.state?.budgets) ? window.state.budgets : [];
+    const tasks = Array.isArray(window.state?.tasks) ? window.state.tasks : [];
+
+    const open = budgets.filter(b=>b.status==='Aberto');
+    const closed = budgets.filter(b=>b.status==='Fechado');
+    const lost = budgets.filter(b=>b.status==='Perdido');
+    const active = closed.filter(b=>(b.projectStatus||'Ativo')==='Ativo');
+
+    const pendingTasks = tasks.filter(t=>t.status!=='Concluída').length;
+    const toReceive = closed.reduce((s,b)=>s+Math.max(0,calcSafe(b).final-paidSafe(b)),0);
+
+    kpisEl.innerHTML = `
+      <div class="v48Kpi"><strong>${active.length}</strong><span>Projetos em andamento</span></div>
+      <div class="v48Kpi"><strong>${pendingTasks}</strong><span>Tarefas pendentes</span></div>
+      <div class="v48Kpi"><strong>${moneySafe(toReceive)}</strong><span>Valor a receber</span></div>
+      <div class="v48Kpi"><strong>${open.length}</strong><span>Propostas em aberto</span></div>
+    `;
+
+    funilEl.innerHTML = `
+      <div class="v48Funnel open"><small>Abertos</small><strong>${open.length}</strong><span>${moneySafe(open.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
+      <div class="v48Funnel closed"><small>Fechados</small><strong>${closed.length}</strong><span>${moneySafe(closed.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
+      <div class="v48Funnel lost"><small>Perdidos</small><strong>${lost.length}</strong><span>${moneySafe(lost.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
+      <div class="v48Funnel total"><small>Total no sistema</small><strong>${budgets.length}</strong><span>${moneySafe(budgets.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
+    `;
+
+    homeEl.innerHTML = active.length ? active.map(b=>{
+      const p = progressSafe(b.id);
+      return `
+        <div class="v48Project">
+          <div class="v48ProjectTop">
+            <div>
+              <b>${b.cliente || 'Cliente'}</b>
+              <div class="mini">${(b.projetos||[]).join(', ')} • ${prazoSafe(b)}</div>
+            </div>
+            <strong>${moneySafe(calcSafe(b).final)}</strong>
+          </div>
+
+          <div class="bar" style="margin-top:10px">
+            <i style="width:${p}%"></i>
+          </div>
+
+          <div class="btns" style="margin-top:12px">
+            <button class="btn primary" onclick="state.selectedProject='${b.id}';go('tarefas')">Tarefas</button>
+            <button class="btn" onclick="go('financeiro')">Financeiro</button>
+          </div>
+        </div>
+      `;
+    }).join('') : '<div class="v48Empty">Nenhum projeto em andamento.</div>';
+  }
+
+  window.renderPanel = renderPanelV48;
+
+  const previousRenderAll = window.renderAll;
+  window.renderAll = function(){
+    previousRenderAll();
+    renderPanelV48();
+  };
+
+  document.addEventListener('DOMContentLoaded', renderPanelV48);
+  setTimeout(renderPanelV48, 100);
+  setTimeout(renderPanelV48, 500);
 })();
 </script>
 
