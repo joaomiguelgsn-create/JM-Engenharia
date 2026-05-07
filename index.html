@@ -1101,6 +1101,101 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
 .baseEditorHeader .btns{justify-content:flex-end}
 @media(max-width:1050px){.v45Header{display:block}.v45Kpis,.v45Grid{grid-template-columns:1fr!important}}
 
+
+/* ===== V46 PAINEL LIMPO ===== */
+.v44Hero,
+.dashboardHero{
+  display:none!important;
+}
+
+/* remove aqueles blocos gigantes antigos */
+.hero,
+.heroGrid,
+.panelHero,
+.panelBanner{
+  display:none!important;
+}
+
+/* funil comercial */
+.v46Funnel{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:14px;
+  margin-top:18px;
+}
+.v46Stage{
+  border-radius:24px;
+  padding:20px;
+  background:#fffdf8;
+  border:1px solid var(--line);
+  box-shadow:var(--shadow);
+}
+.v46Stage small{
+  display:block;
+  color:var(--mut);
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  font-weight:900;
+  margin-bottom:10px;
+}
+.v46Stage strong{
+  display:block;
+  font-size:34px;
+  color:var(--txt);
+  letter-spacing:-.06em;
+}
+.v46Stage span{
+  display:block;
+  margin-top:8px;
+  color:var(--mut);
+  font-size:13px;
+}
+.v46Stage.open{border-top:6px solid #2563eb}
+.v46Stage.neg{border-top:6px solid #d97706}
+.v46Stage.closed{border-top:6px solid #16a34a}
+.v46Stage.lost{border-top:6px solid #dc2626}
+
+/* projetos em andamento */
+.v46Projects{
+  margin-top:18px;
+  display:grid;
+  gap:14px;
+}
+.v46Project{
+  background:#fffdf8;
+  border:1px solid var(--line);
+  border-left:7px solid var(--gold);
+  border-radius:24px;
+  padding:18px;
+  box-shadow:var(--shadow);
+}
+.v46ProjectTop{
+  display:flex;
+  justify-content:space-between;
+  gap:14px;
+  align-items:flex-start;
+}
+.v46ProjectTop b{
+  font-size:20px;
+  color:var(--txt);
+}
+.v46ProjectTop strong{
+  color:#9a6a2b;
+  font-size:22px;
+}
+.v46ProjectMeta{
+  color:var(--mut);
+  font-size:14px;
+  margin:6px 0 12px;
+}
+.v46ProjectActions{
+  margin-top:14px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -2116,6 +2211,230 @@ renderAll=function(){
   oldRenderAllV45();
   renderPrefeitura();
   renderBase();
+};
+
+
+/* ===== V46 PAINEL DEFINITIVO ===== */
+renderPanel = function(){
+  const budgets = state.budgets || [];
+  const active = activeProjects();
+  const closed = closedProjects();
+
+  const open = budgets.filter(b=>b.status==='Aberto');
+  const negotiating = budgets.filter(b=>b.status==='Negociando');
+  const lost = budgets.filter(b=>b.status==='Perdido');
+
+  const overduePay = closed.filter(b=>jmFinanceStatus(b)==='overdue');
+  const lateProjects = active.filter(b=>prazoInfo(b).cls==='bad');
+  const nextProjects = active.filter(b=>prazoInfo(b).cls==='warn');
+
+  const pendingTasks = state.tasks.filter(t=>t.status!=='Concluída').length;
+  const receive = jmMoneyOpen();
+
+  resumoPanel.innerHTML = `
+    <div class="v45Panel">
+
+      <div class="v45Header">
+        <div>
+          <h3>Painel do escritório</h3>
+          <p>Visão rápida do comercial, projetos, tarefas e financeiro.</p>
+        </div>
+
+        <div class="btns">
+          <button class="btn primary" onclick="go('orcamento')">Novo orçamento</button>
+          <button class="btn" onclick="go('financeiro')">Financeiro</button>
+          <button class="btn" onclick="go('projetos')">Projetos</button>
+        </div>
+      </div>
+
+      <div class="v45Kpis">
+        <div class="v45Kpi">
+          <strong>${active.length}</strong>
+          <span>Projetos em andamento</span>
+        </div>
+
+        <div class="v45Kpi">
+          <strong>${lateProjects.length}</strong>
+          <span>Projetos atrasados</span>
+        </div>
+
+        <div class="v45Kpi">
+          <strong>${pendingTasks}</strong>
+          <span>Tarefas pendentes</span>
+        </div>
+
+        <div class="v45Kpi">
+          <strong>${money(receive)}</strong>
+          <span>Valor a receber</span>
+        </div>
+      </div>
+
+      <div class="v46Funnel">
+        <div class="v46Stage open">
+          <small>Orçamentos abertos</small>
+          <strong>${open.length}</strong>
+          <span>${money(open.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
+        </div>
+
+        <div class="v46Stage neg">
+          <small>Negociando</small>
+          <strong>${negotiating.length}</strong>
+          <span>${money(negotiating.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
+        </div>
+
+        <div class="v46Stage closed">
+          <small>Fechados</small>
+          <strong>${closed.length}</strong>
+          <span>${money(closed.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
+        </div>
+
+        <div class="v46Stage lost">
+          <small>Perdidos</small>
+          <strong>${lost.length}</strong>
+          <span>${money(lost.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
+        </div>
+      </div>
+
+      <div class="v45Grid">
+        <div class="v45Box">
+          <h3>Atenção agora</h3>
+
+          <div class="v45List">
+
+            ${overduePay.map(b=>`
+              <div class="v45Item v45Bad">
+                <div>
+                  <b>Pagamento atrasado</b>
+                  <span>${b.cliente}</span>
+                </div>
+
+                <button class="btn" onclick="go('financeiro')">
+                  Abrir
+                </button>
+              </div>
+            `).join('')}
+
+            ${lateProjects.map(b=>`
+              <div class="v45Item v45Bad">
+                <div>
+                  <b>Projeto atrasado</b>
+                  <span>${b.cliente}</span>
+                </div>
+
+                <button class="btn" onclick="state.selectedProject='${b.id}';go('tarefas')">
+                  Abrir
+                </button>
+              </div>
+            `).join('')}
+
+            ${nextProjects.map(b=>`
+              <div class="v45Item v45Warn">
+                <div>
+                  <b>Entrega próxima</b>
+                  <span>${b.cliente}</span>
+                </div>
+
+                <button class="btn" onclick="state.selectedProject='${b.id}';go('tarefas')">
+                  Abrir
+                </button>
+              </div>
+            `).join('')}
+
+            ${(!overduePay.length && !lateProjects.length && !nextProjects.length)
+              ? '<p class="muted">Nada urgente no momento.</p>'
+              : ''
+            }
+
+          </div>
+        </div>
+
+        <div class="v45Box">
+          <h3>Resumo rápido</h3>
+
+          <div class="v45List">
+
+            <div class="v45Item">
+              <div>
+                <b>Pagamentos atrasados</b>
+                <span>${overduePay.length} ocorrência(s)</span>
+              </div>
+
+              <strong>${money(overduePay.reduce((s,b)=>s+Math.max(0,calcFrom(b).final-jmPaymentTotal(b)),0))}</strong>
+            </div>
+
+            <div class="v45Item">
+              <div>
+                <b>Projetos próximos da entrega</b>
+                <span>${nextProjects.length} projeto(s)</span>
+              </div>
+
+              <strong>${nextProjects.length}</strong>
+            </div>
+
+            <div class="v45Item">
+              <div>
+                <b>Tarefas pendentes</b>
+                <span>Em todos os projetos</span>
+              </div>
+
+              <strong>${pendingTasks}</strong>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="v45Box">
+        <h3>Projetos em andamento</h3>
+
+        <div class="v46Projects">
+
+          ${active.map(b=>{
+            const p = progress(b.id);
+            const c = calcFrom(b);
+
+            return `
+              <div class="v46Project">
+
+                <div class="v46ProjectTop">
+                  <div>
+                    <b>${b.cliente}</b>
+
+                    <div class="v46ProjectMeta">
+                      ${(b.projetos||[]).join(', ')} • ${prazoInfo(b).txt}
+                    </div>
+                  </div>
+
+                  <strong>${money(c.final)}</strong>
+                </div>
+
+                <div class="bar">
+                  <i style="width:${p}%"></i>
+                </div>
+
+                <div class="v46ProjectActions">
+                  <button class="btn primary" onclick="state.selectedProject='${b.id}';go('tarefas')">
+                    Tarefas
+                  </button>
+
+                  <button class="btn" onclick="go('financeiro')">
+                    Financeiro
+                  </button>
+
+                  <button class="btn" onclick="openProposal('${b.id}')">
+                    Proposta
+                  </button>
+                </div>
+
+              </div>
+            `;
+          }).join('') || '<p class="muted">Nenhum projeto em andamento.</p>'}
+
+        </div>
+      </div>
+
+    </div>
+  `;
 };
 
 init();
