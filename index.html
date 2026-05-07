@@ -1064,479 +1064,114 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
 }
 
 
-/* ===== V45 FINALIZAÇÃO — painel enxuto, anexos legíveis, prefeitura com filtros, base protegida ===== */
-.dashboardHero,.v44Hero{display:none!important}
-.v45Panel{display:grid;gap:18px}
-.v45Header{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:24px;border-radius:28px;background:#fffdf8;border:1px solid var(--line);box-shadow:var(--shadow)}
-.v45Header h3{margin:0 0 6px!important;color:var(--txt)!important;font-size:32px!important;letter-spacing:-.055em!important}
-.v45Header p{margin:0;color:var(--mut)}
-.v45Kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.v45Kpi{background:#fffdf8;border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:0 12px 32px rgba(34,28,20,.055)}
-.v45Kpi strong{display:block;color:var(--txt)!important;font-size:31px;line-height:1;letter-spacing:-.055em}
-.v45Kpi span{display:block;color:var(--mut);font-size:13px;margin-top:7px}
-.v45Grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.v45Box{background:#fffdf8;border:1px solid var(--line);border-radius:26px;padding:21px;box-shadow:var(--shadow)}
-.v45Box h3{margin:0 0 14px!important;color:var(--txt)!important;font-size:24px!important}
-.v45List{display:grid;gap:10px}
-.v45Item{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px;border-radius:18px;background:#fbf7f0;border:1px solid #eee2d1}
-.v45Item b{color:var(--txt)!important}
-.v45Item span{color:var(--mut);font-size:13px;display:block;margin-top:3px}
-.v45Warn{background:#fff7ed;color:#92400e;border:1px solid #fbbf24}
-.v45Bad{background:#fff1f2;color:#991b1b;border:1px solid #fca5a5}
-.prefFilterBar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
-.prefFilterBar button{border:1px solid #d8ccba;background:#fff;color:var(--txt);border-radius:999px;padding:10px 13px;font-weight:850;cursor:pointer}
-.prefFilterBar button.active{background:#101828;color:#fff;border-color:#101828}
-.prefFilterBar small{opacity:.75}
-#anexos .card,#anexos .fileItem,#anexos .projectCard{background:#fffdf8!important;color:#101828!important;border-color:#e7ddcf!important}
-#anexos .fileItem{border-radius:18px!important;padding:15px!important;box-shadow:0 8px 24px rgba(34,28,20,.05)!important}
-#anexos .fileItem b,#anexos .fileItem a,#anexos .projectCard b{color:#101828!important}
-#anexos .fileItem .mini,#anexos .projectCard .mini,#anexos .muted{color:#667085!important}
-#anexos .attachTypeFilters button{background:#fff!important;color:#101828!important;border:1px solid #d8ccba!important}
-#anexos .attachTypeFilters button.active{background:#101828!important;color:#fff!important;border-color:#101828!important}
-#anexos .attachTypeBadge{background:#f4efe7!important;color:#7c4d12!important;border-color:#e7d6bc!important}
-#anexos .btn{background:#fff!important;color:#101828!important;border-color:#d8ccba!important}
-#anexos .btn.red{background:#fff1f2!important;color:#991b1b!important;border-color:#fca5a5!important}
-.baseEditorLocked input[data-base]{pointer-events:none!important;opacity:.62!important;background:#f3f0e9!important}
-.baseEditNotice{padding:13px 15px;border-radius:16px;border:1px solid #e7d6bc;background:#fff7ed;color:#92400e;font-weight:800;margin-bottom:14px}
-.baseEditorHeader .btns{justify-content:flex-end}
-@media(max-width:1050px){.v45Header{display:block}.v45Kpis,.v45Grid{grid-template-columns:1fr!important}}
+/* ===== PATCH FINAL SOBRE V44 — prefeitura, anexos e base protegida ===== */
 
-
-/* ===== V46 PAINEL LIMPO ===== */
-.v44Hero,
-.dashboardHero{
-  display:none!important;
-}
-
-/* remove aqueles blocos gigantes antigos */
-.hero,
-.heroGrid,
-.panelHero,
-.panelBanner{
-  display:none!important;
-}
-
-/* funil comercial */
-.v46Funnel{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:14px;
-  margin-top:18px;
-}
-.v46Stage{
-  border-radius:24px;
-  padding:20px;
-  background:#fffdf8;
-  border:1px solid var(--line);
-  box-shadow:var(--shadow);
-}
-.v46Stage small{
-  display:block;
-  color:var(--mut);
-  font-size:12px;
-  text-transform:uppercase;
-  letter-spacing:.08em;
-  font-weight:900;
-  margin-bottom:10px;
-}
-.v46Stage strong{
-  display:block;
-  font-size:34px;
-  color:var(--txt);
-  letter-spacing:-.06em;
-}
-.v46Stage span{
-  display:block;
-  margin-top:8px;
-  color:var(--mut);
-  font-size:13px;
-}
-.v46Stage.open{border-top:6px solid #2563eb}
-.v46Stage.neg{border-top:6px solid #d97706}
-.v46Stage.closed{border-top:6px solid #16a34a}
-.v46Stage.lost{border-top:6px solid #dc2626}
-
-/* projetos em andamento */
-.v46Projects{
-  margin-top:18px;
-  display:grid;
-  gap:14px;
-}
-.v46Project{
-  background:#fffdf8;
-  border:1px solid var(--line);
-  border-left:7px solid var(--gold);
-  border-radius:24px;
-  padding:18px;
-  box-shadow:var(--shadow);
-}
-.v46ProjectTop{
-  display:flex;
-  justify-content:space-between;
-  gap:14px;
-  align-items:flex-start;
-}
-.v46ProjectTop b{
-  font-size:20px;
-  color:var(--txt);
-}
-.v46ProjectTop strong{
-  color:#9a6a2b;
-  font-size:22px;
-}
-.v46ProjectMeta{
-  color:var(--mut);
-  font-size:14px;
-  margin:6px 0 12px;
-}
-.v46ProjectActions{
-  margin-top:14px;
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-}
-
-
-/* ===== V47 PAINEL REAL NOS BLOCOS EXISTENTES ===== */
-.dashboardHero{
-  display:none!important;
-}
-#kpis{
-  display:grid!important;
-  grid-template-columns:repeat(4,1fr)!important;
-  gap:14px!important;
-  margin-bottom:18px!important;
-}
-#kpis .v47Kpi{
-  background:#fffdf8;
-  border:1px solid var(--line);
-  border-radius:24px;
-  padding:20px;
-  box-shadow:0 12px 32px rgba(34,28,20,.055);
-}
-#kpis .v47Kpi strong{
-  display:block;
-  color:var(--txt)!important;
-  font-size:31px;
-  line-height:1;
-  letter-spacing:-.055em;
-}
-#kpis .v47Kpi span{
-  display:block;
-  color:var(--mut);
-  font-size:13px;
-  margin-top:7px;
-}
-#funil{
-  display:grid!important;
-  grid-template-columns:repeat(2,1fr)!important;
-  gap:12px!important;
-}
-.v47FunnelCard{
-  background:#fffdf8;
-  border:1px solid var(--line);
-  border-radius:20px;
-  padding:16px;
-  box-shadow:0 8px 24px rgba(34,28,20,.045);
-}
-.v47FunnelCard small{
-  display:block;
-  color:var(--mut);
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.07em;
-  font-weight:900;
-  margin-bottom:7px;
-}
-.v47FunnelCard strong{
-  display:block;
-  color:var(--txt)!important;
-  font-size:28px;
-  letter-spacing:-.05em;
-}
-.v47FunnelCard span{
-  display:block;
-  margin-top:5px;
-  color:#8a5d15;
-  font-weight:850;
-}
-.v47FunnelCard.open{border-top:5px solid #2563eb}
-.v47FunnelCard.neg{border-top:5px solid #d97706}
-.v47FunnelCard.closed{border-top:5px solid #16a34a}
-.v47FunnelCard.lost{border-top:5px solid #dc2626}
-#homeProjects{
-  display:grid!important;
-  gap:12px!important;
-}
-.v47Project{
-  background:#fffdf8;
-  border:1px solid var(--line);
-  border-left:7px solid var(--gold);
-  border-radius:22px;
-  padding:16px;
-  box-shadow:0 8px 24px rgba(34,28,20,.045);
-}
-.v47ProjectTop{
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  align-items:flex-start;
-}
-.v47ProjectTop b{
-  color:var(--txt)!important;
-  font-size:18px;
-}
-.v47ProjectTop strong{
-  color:#8a5d15;
-  white-space:nowrap;
-}
-.v47Project .mini{
-  margin:6px 0 10px;
-  display:block;
-}
-.v47Actions{
+/* Prefeitura: filtros por status */
+.prefFilterBar{
   display:flex;
   gap:8px;
   flex-wrap:wrap;
-  margin-top:12px;
+  margin:0 0 16px;
 }
-.v47Empty{
-  color:var(--mut);
-  background:#fbf7f0;
-  border:1px dashed #d8ccba;
-  border-radius:18px;
-  padding:16px;
+.prefFilterBar button{
+  border:1px solid #d8ccba!important;
+  background:#fff!important;
+  color:#101828!important;
+  border-radius:999px!important;
+  padding:10px 13px!important;
+  font-weight:850!important;
+  cursor:pointer;
 }
-@media(max-width:1050px){
-  #kpis,#funil{grid-template-columns:1fr!important}
-}
-
-
-/* ===== V48 PAINEL FORÇADO E ESTÁVEL ===== */
-#kpis{
-  display:grid!important;
-  grid-template-columns:repeat(4,1fr)!important;
-  gap:14px!important;
-  margin:0 0 18px!important;
-}
-.v48Kpi{
-  background:#fffdf8;
-  border:1px solid var(--line);
-  border-radius:24px;
-  padding:20px;
-  box-shadow:0 12px 32px rgba(34,28,20,.055);
-}
-.v48Kpi strong{
-  display:block;
-  color:var(--txt)!important;
-  font-size:31px;
-  line-height:1;
-  letter-spacing:-.055em;
-}
-.v48Kpi span{
-  display:block;
-  color:var(--mut);
-  font-size:13px;
-  margin-top:7px;
-}
-#funil{
-  display:grid!important;
-  grid-template-columns:repeat(2,1fr)!important;
-  gap:12px!important;
-  min-height:120px!important;
-}
-.v48Funnel{
-  background:#fffdf8;
-  border:1px solid var(--line);
-  border-radius:20px;
-  padding:16px;
-  box-shadow:0 8px 24px rgba(34,28,20,.045);
-}
-.v48Funnel small{
-  display:block;
-  color:var(--mut);
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.07em;
-  font-weight:900;
-  margin-bottom:7px;
-}
-.v48Funnel strong{
-  display:block;
-  color:var(--txt)!important;
-  font-size:28px;
-  letter-spacing:-.05em;
-}
-.v48Funnel span{
-  color:#8a5d15;
-  font-weight:850;
-}
-.v48Funnel.open{border-top:5px solid #2563eb}
-.v48Funnel.closed{border-top:5px solid #16a34a}
-.v48Funnel.lost{border-top:5px solid #dc2626}
-.v48Funnel.total{border-top:5px solid #b98534}
-#homeProjects{
-  display:grid!important;
-  gap:12px!important;
-  min-height:120px!important;
-}
-.v48Project{
-  background:#fffdf8;
-  border:1px solid var(--line);
-  border-left:7px solid var(--gold);
-  border-radius:22px;
-  padding:16px;
-  box-shadow:0 8px 24px rgba(34,28,20,.045);
-}
-.v48ProjectTop{
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  align-items:flex-start;
-}
-.v48ProjectTop b{
-  color:var(--txt)!important;
-  font-size:18px;
-}
-.v48ProjectTop strong{
-  color:#8a5d15;
-  white-space:nowrap;
-}
-.v48Empty{
-  color:var(--mut);
-  background:#fbf7f0;
-  border:1px dashed #d8ccba;
-  border-radius:18px;
-  padding:16px;
-}
-@media(max-width:1050px){
-  #kpis,#funil{grid-template-columns:1fr!important}
-}
-
-
-/* ===== V50: painel v48 + quadro grande + pagamentos atrasados estáveis ===== */
-.v50Hero{
-  display:grid;
-  grid-template-columns:1.15fr .85fr;
-  gap:18px;
-  align-items:stretch;
-  margin:0 0 18px;
-}
-.v50HeroMain{
-  min-height:230px;
-  border-radius:30px;
-  padding:28px;
-  background:
-    linear-gradient(110deg,rgba(255,253,248,.99),rgba(255,253,248,.90) 55%,rgba(255,253,248,.28)),
-    url("https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?q=80&w=1600&auto=format&fit=crop") center/cover;
-  border:1px solid var(--line);
-  box-shadow:var(--shadow);
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-}
-.v50HeroMain small{
-  color:var(--gold);
-  font-size:12px;
-  font-weight:950;
-  letter-spacing:.16em;
-  text-transform:uppercase;
-}
-.v50HeroMain h3{
-  color:var(--txt)!important;
-  font-size:42px!important;
-  line-height:.98;
-  letter-spacing:-.065em;
-  margin:10px 0!important;
-}
-.v50HeroMain p{
-  color:#475467;
-  max-width:720px;
-  font-size:16px;
-  line-height:1.55;
-  margin:0;
-}
-.v50HeroSide{
-  border-radius:30px;
-  padding:24px;
-  background:#101828;
-  color:#fff;
-  box-shadow:var(--shadow);
-  display:flex;
-  flex-direction:column;
-  justify-content:space-between;
-}
-.v50HeroSide h3{
+.prefFilterBar button.active{
+  background:#101828!important;
   color:#fff!important;
-  font-size:26px!important;
-  line-height:1.05;
-  letter-spacing:-.045em;
-  margin:0 0 10px!important;
+  border-color:#101828!important;
 }
-.v50HeroSide p{
-  color:#d1d5db;
-  margin:0;
-  line-height:1.55;
+.prefFilterBar small{
+  opacity:.72;
 }
-.v50HeroSide strong{
-  color:#f3c77a!important;
-  font-size:34px;
-  letter-spacing:-.06em;
+
+/* Anexos: leitura clara */
+#anexos .card,
+#anexos .fileItem,
+#anexos .projectCard{
+  background:#fffdf8!important;
+  color:#101828!important;
+  border-color:#e7ddcf!important;
 }
-.v50PanelGrid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:18px;
-  margin-top:18px;
+#anexos .fileItem{
+  border-radius:18px!important;
+  padding:15px!important;
+  box-shadow:0 8px 24px rgba(34,28,20,.05)!important;
 }
-.v50PanelCard{
-  background:#fffdf8;
-  border:1px solid var(--line);
-  border-radius:26px;
-  padding:22px;
-  box-shadow:var(--shadow);
+#anexos .fileItem *,
+#anexos .projectCard *{
+  opacity:1!important;
 }
-.v50PanelCard h3{
-  margin:0 0 14px!important;
-  color:var(--txt)!important;
-  font-size:24px!important;
+#anexos .fileItem b,
+#anexos .fileItem a,
+#anexos .projectCard b{
+  color:#101828!important;
 }
-#kpis{
-  display:grid!important;
-  grid-template-columns:repeat(5,1fr)!important;
-  gap:14px!important;
-  margin:0 0 18px!important;
+#anexos .fileItem .mini,
+#anexos .projectCard .mini,
+#anexos .muted{
+  color:#667085!important;
 }
-#funil{
-  display:grid!important;
-  grid-template-columns:repeat(2,1fr)!important;
-  gap:12px!important;
-  min-height:120px!important;
+#anexos .attachTypeFilters button{
+  background:#fff!important;
+  color:#101828!important;
+  border:1px solid #d8ccba!important;
 }
-#homeProjects,#v50OverdueList{
-  display:grid!important;
-  gap:12px!important;
-  min-height:120px!important;
+#anexos .attachTypeFilters button.active{
+  background:#101828!important;
+  color:#fff!important;
+  border-color:#101828!important;
 }
-.v50Overdue{
-  background:#fffdf8;
-  border:1px solid #fecaca;
-  border-left:7px solid #dc2626;
-  border-radius:22px;
-  padding:16px;
-  box-shadow:0 8px 24px rgba(34,28,20,.045);
+#anexos .attachTypeBadge{
+  background:#f4efe7!important;
+  color:#7c4d12!important;
+  border-color:#e7d6bc!important;
 }
-.v50OverdueTop{
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  align-items:flex-start;
+#anexos .btn{
+  background:#fff!important;
+  color:#101828!important;
+  border-color:#d8ccba!important;
 }
-.v50OverdueTop b{color:var(--txt)!important;font-size:18px}
-.v50OverdueTop strong{color:#991b1b;white-space:nowrap}
-@media(max-width:1050px){
-  .v50Hero,.v50PanelGrid,#kpis,#funil{grid-template-columns:1fr!important}
-  .v50HeroMain h3{font-size:34px!important}
+#anexos .btn.red{
+  background:#fff1f2!important;
+  color:#991b1b!important;
+  border-color:#fca5a5!important;
+}
+.cleanFileName{
+  display:block!important;
+  font-size:15px!important;
+  font-weight:900!important;
+  color:#101828!important;
+  margin-bottom:4px!important;
+  word-break:break-word!important;
+}
+
+/* Base de preços: bloqueada até clicar em editar */
+.baseEditorLocked input[data-base]{
+  pointer-events:none!important;
+  opacity:.62!important;
+  background:#f3f0e9!important;
+}
+.baseEditNotice{
+  padding:13px 15px;
+  border-radius:16px;
+  border:1px solid #e7d6bc;
+  background:#fff7ed;
+  color:#92400e;
+  font-weight:800;
+  margin-bottom:14px;
+}
+.baseEditorHeader .btns{
+  justify-content:flex-end;
+}
+.baseEditorHeader{
+  align-items:flex-start!important;
 }
 
 </style>
@@ -2380,786 +2015,184 @@ tasksOf = function(pid,type='Todos'){
   return state.tasks.filter(t=>t.projectId===pid&&(type==='Todos'||t.tipo===type));
 };
 
-
-/* ===== V45 FINALIZAÇÃO ===== */
-let prefFilterV45 = 'Todos';
-let baseEditingV45 = false;
-
-function prefStatusV45(id){
-  const p = (state.prefeitura||[]).find(x=>x.id===id);
-  return p ? (p.status || 'Não protocolado') : 'Não protocolado';
-}
-function prefMatchesV45(status, filter){
-  if(filter==='Todos') return true;
-  if(filter==='Protocolados') return ['Protocolado','Em análise','Reapresentado','Aguardando cliente'].includes(status);
-  if(filter==='Com exigência') return status==='Com exigência';
-  if(filter==='Aprovados') return status==='Aprovado';
-  if(filter==='Não protocolados') return status==='Não protocolado';
-  if(filter==='Indeferidos') return status==='Indeferido';
-  return true;
-}
-const oldRenderPrefeituraV45 = renderPrefeitura;
-renderPrefeitura = function(){
-  if(!document.getElementById('prefList')) return;
-  const projects = state.budgets.filter(b=>b.status==='Fechado');
-  if(typeof prefEditing !== 'undefined' && prefEditing) return renderPrefEditor(prefEditing);
-
-  const filters = ['Todos','Protocolados','Com exigência','Aprovados','Não protocolados','Indeferidos'];
-  const counts = {
-    'Todos': projects.length,
-    'Protocolados': projects.filter(b=>prefMatchesV45(prefStatusV45(b.id),'Protocolados')).length,
-    'Com exigência': projects.filter(b=>prefStatusV45(b.id)==='Com exigência').length,
-    'Aprovados': projects.filter(b=>prefStatusV45(b.id)==='Aprovado').length,
-    'Não protocolados': projects.filter(b=>prefStatusV45(b.id)==='Não protocolado').length,
-    'Indeferidos': projects.filter(b=>prefStatusV45(b.id)==='Indeferido').length
-  };
-
-  const shown = projects.filter(b=>prefMatchesV45(prefStatusV45(b.id), prefFilterV45));
-  prefEditor.innerHTML='';
-  prefList.innerHTML = `
-    <div class="prefFilterBar">
-      ${filters.map(f=>`<button class="${prefFilterV45===f?'active':''}" onclick="prefFilterV45='${f}';renderPrefeitura()">${f} <small>(${counts[f]})</small></button>`).join('')}
-    </div>
-    <div class="prefProjectsGrid">
-      ${shown.map(b=>{
-        const p=prefFind(b.id)||{status:'Não protocolado',protocol:'',steps:[]};
-        const ds=daysSince(p.move||p.date);
-        return `<div class="prefProjectCard">
-          <div class="projectTopActions">
-            <div>
-              <h4>${b.cliente}</h4>
-              <p class="mini">${(b.projetos||[]).join(', ')}</p>
-            </div>
-            <span class="pill ${prefClass(p.status)}">${p.status||'Não protocolado'}</span>
-          </div>
-          <div class="prefMeta">
-            <div><small>Protocolo</small><b>${p.protocol||'-'}</b></div>
-            <div><small>Etapas</small><b>${(p.steps||[]).length}</b></div>
-            <div><small>Movimentação</small><b>${p.move?brDate(p.move):p.date?brDate(p.date):'-'}</b></div>
-            <div><small>Parado há</small><b>${ds!==null?ds+' dia(s)':'-'}</b></div>
-          </div>
-          <button class="btn primary" onclick="openPrefEditor('${b.id}')">Abrir processo</button>
-        </div>`;
-      }).join('') || '<p class="muted">Nenhum projeto neste filtro.</p>'}
-    </div>`;
-};
-
-function openAttentionV45(kind,id){
-  if(kind==='financeiro'){ go('financeiro'); return; }
-  state.selectedProject=id;
-  go('tarefas');
-}
-
-renderPanel = function(){
-  const closed=closedProjects();
-  const active=activeProjects();
-  const open=state.budgets.filter(b=>b.status==='Aberto');
-  const overduePay=closed.filter(b=>jmFinanceStatus(b)==='overdue');
-  const lateProjects=active.filter(b=>prazoInfo(b).cls==='bad');
-  const nextProjects=active.filter(b=>prazoInfo(b).cls==='warn');
-  const pendingTasks=state.tasks.filter(t=>t.status!=='Concluída').length;
-  const receive=jmMoneyOpen();
-
-  const attention = (overduePay.map(b=>({kind:'Pagamento atrasado', action:'financeiro', b, cls:'v45Bad'}))
-    .concat(lateProjects.map(b=>({kind:'Projeto atrasado', action:'tarefas', b, cls:'v45Bad'})))
-    .concat(nextProjects.map(b=>({kind:'Entrega próxima', action:'tarefas', b, cls:'v45Warn'}))))
-    .filter((x,i,arr)=>arr.findIndex(y=>y.kind===x.kind && y.b.id===x.b.id)===i)
-    .slice(0,6);
-
-  resumoPanel.innerHTML = `
-    <div class="v45Panel">
-      <div class="v45Header">
-        <div>
-          <h3>Painel do escritório</h3>
-          <p>Resumo direto para acompanhar prazos, tarefas e dinheiro sem distração.</p>
-        </div>
-        <div class="btns">
-          <button class="btn primary" onclick="go('orcamento')">Novo orçamento</button>
-          <button class="btn" onclick="go('financeiro')">Financeiro</button>
-          <button class="btn" onclick="go('projetos')">Projetos</button>
-        </div>
-      </div>
-
-      <div class="v45Kpis">
-        <div class="v45Kpi"><strong>${active.length}</strong><span>Projetos em andamento</span></div>
-        <div class="v45Kpi"><strong>${lateProjects.length}</strong><span>Projetos atrasados</span></div>
-        <div class="v45Kpi"><strong>${pendingTasks}</strong><span>Tarefas pendentes</span></div>
-        <div class="v45Kpi"><strong>${money(receive)}</strong><span>Valor a receber</span></div>
-      </div>
-
-      <div class="v45Grid">
-        <div class="v45Box">
-          <h3>Atenção agora</h3>
-          <div class="v45List">
-            ${attention.map(x=>`<div class="v45Item ${x.cls}">
-              <div><b>${x.kind}</b><span>${x.b.cliente} • ${(x.b.projetos||[]).join(', ')}</span></div>
-              <button class="btn" onclick="openAttentionV45('${x.action}','${x.b.id}')">Abrir</button>
-            </div>`).join('') || '<p class="muted">Nada urgente por enquanto.</p>'}
-          </div>
-        </div>
-
-        <div class="v45Box">
-          <h3>Projetos em andamento</h3>
-          <div class="v45List">
-            ${active.slice(0,5).map(b=>{
-              const p=progress(b.id);
-              return `<div class="v45Item">
-                <div style="flex:1"><b>${b.cliente}</b><span>${(b.projetos||[]).join(', ')} • ${prazoInfo(b).txt}</span><div class="bar"><i style="width:${p}%"></i></div></div>
-                <button class="btn primary" onclick="state.selectedProject='${b.id}';go('tarefas')">Tarefas</button>
-              </div>`;
-            }).join('') || '<p class="muted">Nenhum projeto em andamento.</p>'}
-          </div>
-        </div>
-      </div>
-
-      <div class="v45Kpis">
-        <div class="v45Kpi"><strong>${open.length}</strong><span>Propostas em aberto</span></div>
-        <div class="v45Kpi"><strong>${overduePay.length}</strong><span>Pagamentos atrasados</span></div>
-        <div class="v45Kpi"><strong>${nextProjects.length}</strong><span>Entregas próximas</span></div>
-        <div class="v45Kpi"><strong>${closed.length}</strong><span>Orçamentos fechados</span></div>
-      </div>
-    </div>`;
-};
-
-const oldRenderBaseV45 = renderBase;
-renderBase = function(){
-  oldRenderBaseV45();
-  if(!document.getElementById('baseTables')) return;
-  baseTables.classList.toggle('baseEditorLocked', !baseEditingV45);
-  const header = baseTables.querySelector('.baseEditorHeader');
-  if(header && !header.dataset.v45){
-    header.dataset.v45='1';
-    const btns = document.createElement('div');
-    btns.className='btns';
-    btns.innerHTML = `
-      <button class="btn primary" onclick="baseEditingV45=true;renderBase()">Editar base</button>
-      <button class="btn green" onclick="saveBaseEditor();baseEditingV45=false;renderBase()">Salvar alterações</button>
-      <button class="btn" onclick="baseEditingV45=false;renderBase()">Bloquear</button>
-    `;
-    header.appendChild(btns);
-  }
-  if(!baseTables.querySelector('.baseEditNotice')){
-    const notice = document.createElement('div');
-    notice.className='baseEditNotice';
-    notice.textContent = baseEditingV45 ? 'Modo edição ativado. Altere os valores e clique em salvar alterações.' : 'Base bloqueada para evitar alterações sem querer. Clique em “Editar base” para liberar.';
-    baseTables.insertBefore(notice, baseTables.children[1]);
-  } else {
-    baseTables.querySelector('.baseEditNotice').textContent = baseEditingV45 ? 'Modo edição ativado. Altere os valores e clique em salvar alterações.' : 'Base bloqueada para evitar alterações sem querer. Clique em “Editar base” para liberar.';
-  }
-  baseTables.querySelectorAll('[data-base]').forEach(inp=>inp.disabled=!baseEditingV45);
-};
-
-const oldRenderAllV45 = renderAll;
-renderAll=function(){
-  oldRenderAllV45();
-  renderPrefeitura();
-  renderBase();
-};
-
-
-/* ===== V46 PAINEL DEFINITIVO ===== */
-renderPanel = function(){
-  const budgets = state.budgets || [];
-  const active = activeProjects();
-  const closed = closedProjects();
-
-  const open = budgets.filter(b=>b.status==='Aberto');
-  const negotiating = budgets.filter(b=>b.status==='Negociando');
-  const lost = budgets.filter(b=>b.status==='Perdido');
-
-  const overduePay = closed.filter(b=>jmFinanceStatus(b)==='overdue');
-  const lateProjects = active.filter(b=>prazoInfo(b).cls==='bad');
-  const nextProjects = active.filter(b=>prazoInfo(b).cls==='warn');
-
-  const pendingTasks = state.tasks.filter(t=>t.status!=='Concluída').length;
-  const receive = jmMoneyOpen();
-
-  resumoPanel.innerHTML = `
-    <div class="v45Panel">
-
-      <div class="v45Header">
-        <div>
-          <h3>Painel do escritório</h3>
-          <p>Visão rápida do comercial, projetos, tarefas e financeiro.</p>
-        </div>
-
-        <div class="btns">
-          <button class="btn primary" onclick="go('orcamento')">Novo orçamento</button>
-          <button class="btn" onclick="go('financeiro')">Financeiro</button>
-          <button class="btn" onclick="go('projetos')">Projetos</button>
-        </div>
-      </div>
-
-      <div class="v45Kpis">
-        <div class="v45Kpi">
-          <strong>${active.length}</strong>
-          <span>Projetos em andamento</span>
-        </div>
-
-        <div class="v45Kpi">
-          <strong>${lateProjects.length}</strong>
-          <span>Projetos atrasados</span>
-        </div>
-
-        <div class="v45Kpi">
-          <strong>${pendingTasks}</strong>
-          <span>Tarefas pendentes</span>
-        </div>
-
-        <div class="v45Kpi">
-          <strong>${money(receive)}</strong>
-          <span>Valor a receber</span>
-        </div>
-      </div>
-
-      <div class="v46Funnel">
-        <div class="v46Stage open">
-          <small>Orçamentos abertos</small>
-          <strong>${open.length}</strong>
-          <span>${money(open.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
-        </div>
-
-        <div class="v46Stage neg">
-          <small>Negociando</small>
-          <strong>${negotiating.length}</strong>
-          <span>${money(negotiating.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
-        </div>
-
-        <div class="v46Stage closed">
-          <small>Fechados</small>
-          <strong>${closed.length}</strong>
-          <span>${money(closed.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
-        </div>
-
-        <div class="v46Stage lost">
-          <small>Perdidos</small>
-          <strong>${lost.length}</strong>
-          <span>${money(lost.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
-        </div>
-      </div>
-
-      <div class="v45Grid">
-        <div class="v45Box">
-          <h3>Atenção agora</h3>
-
-          <div class="v45List">
-
-            ${overduePay.map(b=>`
-              <div class="v45Item v45Bad">
-                <div>
-                  <b>Pagamento atrasado</b>
-                  <span>${b.cliente}</span>
-                </div>
-
-                <button class="btn" onclick="go('financeiro')">
-                  Abrir
-                </button>
-              </div>
-            `).join('')}
-
-            ${lateProjects.map(b=>`
-              <div class="v45Item v45Bad">
-                <div>
-                  <b>Projeto atrasado</b>
-                  <span>${b.cliente}</span>
-                </div>
-
-                <button class="btn" onclick="state.selectedProject='${b.id}';go('tarefas')">
-                  Abrir
-                </button>
-              </div>
-            `).join('')}
-
-            ${nextProjects.map(b=>`
-              <div class="v45Item v45Warn">
-                <div>
-                  <b>Entrega próxima</b>
-                  <span>${b.cliente}</span>
-                </div>
-
-                <button class="btn" onclick="state.selectedProject='${b.id}';go('tarefas')">
-                  Abrir
-                </button>
-              </div>
-            `).join('')}
-
-            ${(!overduePay.length && !lateProjects.length && !nextProjects.length)
-              ? '<p class="muted">Nada urgente no momento.</p>'
-              : ''
-            }
-
-          </div>
-        </div>
-
-        <div class="v45Box">
-          <h3>Resumo rápido</h3>
-
-          <div class="v45List">
-
-            <div class="v45Item">
-              <div>
-                <b>Pagamentos atrasados</b>
-                <span>${overduePay.length} ocorrência(s)</span>
-              </div>
-
-              <strong>${money(overduePay.reduce((s,b)=>s+Math.max(0,calcFrom(b).final-jmPaymentTotal(b)),0))}</strong>
-            </div>
-
-            <div class="v45Item">
-              <div>
-                <b>Projetos próximos da entrega</b>
-                <span>${nextProjects.length} projeto(s)</span>
-              </div>
-
-              <strong>${nextProjects.length}</strong>
-            </div>
-
-            <div class="v45Item">
-              <div>
-                <b>Tarefas pendentes</b>
-                <span>Em todos os projetos</span>
-              </div>
-
-              <strong>${pendingTasks}</strong>
-            </div>
-
-          </div>
-        </div>
-      </div>
-
-      <div class="v45Box">
-        <h3>Projetos em andamento</h3>
-
-        <div class="v46Projects">
-
-          ${active.map(b=>{
-            const p = progress(b.id);
-            const c = calcFrom(b);
-
-            return `
-              <div class="v46Project">
-
-                <div class="v46ProjectTop">
-                  <div>
-                    <b>${b.cliente}</b>
-
-                    <div class="v46ProjectMeta">
-                      ${(b.projetos||[]).join(', ')} • ${prazoInfo(b).txt}
-                    </div>
-                  </div>
-
-                  <strong>${money(c.final)}</strong>
-                </div>
-
-                <div class="bar">
-                  <i style="width:${p}%"></i>
-                </div>
-
-                <div class="v46ProjectActions">
-                  <button class="btn primary" onclick="state.selectedProject='${b.id}';go('tarefas')">
-                    Tarefas
-                  </button>
-
-                  <button class="btn" onclick="go('financeiro')">
-                    Financeiro
-                  </button>
-
-                  <button class="btn" onclick="openProposal('${b.id}')">
-                    Proposta
-                  </button>
-                </div>
-
-              </div>
-            `;
-          }).join('') || '<p class="muted">Nenhum projeto em andamento.</p>'}
-
-        </div>
-      </div>
-
-    </div>
-  `;
-};
-
 init();
 </script>
 
 <script>
-/* ===== V47: alimenta KPIs, funil e projetos da aba Painel ===== */
+/* ===== PATCH FINAL SOBRE V44 — filtros prefeitura, anexos e botão editar base ===== */
 (function(){
-  function v47Panel(){
-    if(!document.getElementById('kpis') || !document.getElementById('funil') || !document.getElementById('homeProjects')) return;
+  let prefFilterFinal = 'Todos';
+  let baseEditingFinal = false;
 
-    const budgets = state.budgets || [];
-    const closed = closedProjects();
-    const active = activeProjects();
-
-    const open = budgets.filter(b=>b.status==='Aberto');
-    const negotiating = budgets.filter(b=>b.status==='Negociando');
-    const lost = budgets.filter(b=>b.status==='Perdido');
-
-    const overduePay = closed.filter(b=>jmFinanceStatus(b)==='overdue');
-    const lateProjects = active.filter(b=>prazoInfo(b).cls==='bad');
-    const pendingTasks = state.tasks.filter(t=>t.status!=='Concluída').length;
-    const receive = jmMoneyOpen();
-
-    kpis.innerHTML = `
-      <div class="v47Kpi"><strong>${active.length}</strong><span>Projetos em andamento</span></div>
-      <div class="v47Kpi"><strong>${lateProjects.length}</strong><span>Projetos atrasados</span></div>
-      <div class="v47Kpi"><strong>${pendingTasks}</strong><span>Tarefas pendentes</span></div>
-      <div class="v47Kpi"><strong>${money(receive)}</strong><span>Valor a receber</span></div>
-    `;
-
-    funil.innerHTML = `
-      <div class="v47FunnelCard open">
-        <small>Abertos</small>
-        <strong>${open.length}</strong>
-        <span>${money(open.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
-      </div>
-
-      <div class="v47FunnelCard neg">
-        <small>Negociando</small>
-        <strong>${negotiating.length}</strong>
-        <span>${money(negotiating.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
-      </div>
-
-      <div class="v47FunnelCard closed">
-        <small>Fechados</small>
-        <strong>${closed.length}</strong>
-        <span>${money(closed.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
-      </div>
-
-      <div class="v47FunnelCard lost">
-        <small>Perdidos</small>
-        <strong>${lost.length}</strong>
-        <span>${money(lost.reduce((s,b)=>s+calcFrom(b).final,0))}</span>
-      </div>
-    `;
-
-    homeProjects.innerHTML = active.length ? active.map(b=>{
-      const p = progress(b.id);
-      const c = calcFrom(b);
-      return `
-        <div class="v47Project">
-          <div class="v47ProjectTop">
-            <div>
-              <b>${b.cliente}</b>
-              <span class="mini">${(b.projetos||[]).join(', ')} • ${prazoInfo(b).txt}</span>
-            </div>
-            <strong>${money(c.final)}</strong>
-          </div>
-
-          <div class="bar">
-            <i style="width:${p}%"></i>
-          </div>
-
-          <div class="v47Actions">
-            <button class="btn primary" onclick="state.selectedProject='${b.id}';go('tarefas')">Tarefas</button>
-            <button class="btn" onclick="go('financeiro')">Financeiro</button>
-            <button class="btn" onclick="openProposal('${b.id}')">Proposta</button>
-          </div>
-        </div>
-      `;
-    }).join('') : '<div class="v47Empty">Nenhum projeto em andamento.</div>';
+  function prefStatusFinal(id){
+    const p = (state.prefeitura || []).find(x => x.id === id);
+    return p ? (p.status || 'Não protocolado') : 'Não protocolado';
   }
 
-  renderPanel = v47Panel;
-
-  const oldRenderAllV47 = renderAll;
-  renderAll = function(){
-    oldRenderAllV47();
-    v47Panel();
-  };
-
-  setTimeout(v47Panel, 50);
-})();
-</script>
-
-
-<script>
-/* ===== V48: painel sem depender de funções antigas que podem falhar ===== */
-(function(){
-  function moneySafe(v){
-    try{
-      return (Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-    }catch(e){
-      return 'R$ ' + (Number(v)||0).toFixed(2);
-    }
+  function prefMatchesFinal(status, filter){
+    if(filter === 'Todos') return true;
+    if(filter === 'Protocolados') return ['Protocolado','Em análise','Reapresentado','Aguardando cliente'].includes(status);
+    if(filter === 'Com exigência') return status === 'Com exigência';
+    if(filter === 'Aprovados') return status === 'Aprovado';
+    if(filter === 'Não protocolados') return status === 'Não protocolado';
+    if(filter === 'Indeferidos') return status === 'Indeferido';
+    return true;
   }
 
-  function calcSafe(b){
-    try{
-      if(typeof calcFrom === 'function') return calcFrom(b);
-    }catch(e){}
-    return {final:Number(b.negociado || b.valor || 0) || 0};
-  }
+  const oldRenderPrefeituraFinal = window.renderPrefeitura;
+  window.renderPrefeitura = function(){
+    if(!document.getElementById('prefList')) return;
 
-  function paidSafe(b){
-    try{
-      if(typeof paymentTotal === 'function') return paymentTotal(b);
-    }catch(e){}
-    if(Array.isArray(b.payments)) return b.payments.reduce((s,p)=>s+(Number(p.value)||0),0);
-    return Number(b.received)||0;
-  }
-
-  function progressSafe(id){
-    try{
-      if(typeof progress === 'function') return progress(id);
-    }catch(e){}
-    const tasks=(window.state?.tasks||[]).filter(t=>t.projectId===id);
-    if(!tasks.length) return 0;
-    return Math.round(tasks.filter(t=>t.status==='Concluída').length/tasks.length*100);
-  }
-
-  function prazoSafe(b){
-    try{
-      if(typeof prazoInfo === 'function') return prazoInfo(b).txt;
-    }catch(e){}
-    return b.entrega || 'Sem prazo';
-  }
-
-  function renderPanelV48(){
-    const kpisEl = document.getElementById('kpis');
-    const funilEl = document.getElementById('funil');
-    const homeEl = document.getElementById('homeProjects');
-
-    if(!kpisEl || !funilEl || !homeEl) return;
-
-    const budgets = Array.isArray(window.state?.budgets) ? window.state.budgets : [];
-    const tasks = Array.isArray(window.state?.tasks) ? window.state.tasks : [];
-
-    const open = budgets.filter(b=>b.status==='Aberto');
-    const closed = budgets.filter(b=>b.status==='Fechado');
-    const lost = budgets.filter(b=>b.status==='Perdido');
-    const active = closed.filter(b=>(b.projectStatus||'Ativo')==='Ativo');
-
-    const pendingTasks = tasks.filter(t=>t.status!=='Concluída').length;
-    const toReceive = closed.reduce((s,b)=>s+Math.max(0,calcSafe(b).final-paidSafe(b)),0);
-
-    kpisEl.innerHTML = `
-      <div class="v48Kpi"><strong>${active.length}</strong><span>Projetos em andamento</span></div>
-      <div class="v48Kpi"><strong>${pendingTasks}</strong><span>Tarefas pendentes</span></div>
-      <div class="v48Kpi"><strong>${moneySafe(toReceive)}</strong><span>Valor a receber</span></div>
-      <div class="v48Kpi"><strong>${open.length}</strong><span>Propostas em aberto</span></div>
-    `;
-
-    funilEl.innerHTML = `
-      <div class="v48Funnel open"><small>Abertos</small><strong>${open.length}</strong><span>${moneySafe(open.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
-      <div class="v48Funnel closed"><small>Fechados</small><strong>${closed.length}</strong><span>${moneySafe(closed.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
-      <div class="v48Funnel lost"><small>Perdidos</small><strong>${lost.length}</strong><span>${moneySafe(lost.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
-      <div class="v48Funnel total"><small>Total no sistema</small><strong>${budgets.length}</strong><span>${moneySafe(budgets.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
-    `;
-
-    homeEl.innerHTML = active.length ? active.map(b=>{
-      const p = progressSafe(b.id);
-      return `
-        <div class="v48Project">
-          <div class="v48ProjectTop">
-            <div>
-              <b>${b.cliente || 'Cliente'}</b>
-              <div class="mini">${(b.projetos||[]).join(', ')} • ${prazoSafe(b)}</div>
-            </div>
-            <strong>${moneySafe(calcSafe(b).final)}</strong>
-          </div>
-
-          <div class="bar" style="margin-top:10px">
-            <i style="width:${p}%"></i>
-          </div>
-
-          <div class="btns" style="margin-top:12px">
-            <button class="btn primary" onclick="state.selectedProject='${b.id}';go('tarefas')">Tarefas</button>
-            <button class="btn" onclick="go('financeiro')">Financeiro</button>
-          </div>
-        </div>
-      `;
-    }).join('') : '<div class="v48Empty">Nenhum projeto em andamento.</div>';
-  }
-
-  window.renderPanel = renderPanelV48;
-
-  const previousRenderAll = window.renderAll;
-  window.renderAll = function(){
-    previousRenderAll();
-    renderPanelV48();
-  };
-
-  document.addEventListener('DOMContentLoaded', renderPanelV48);
-  setTimeout(renderPanelV48, 100);
-  setTimeout(renderPanelV48, 500);
-})();
-</script>
-
-
-<script>
-/* ===== V50: painel completo em cima da v48 estável ===== */
-(function(){
-  function moneySafe(v){
-    try { return (Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
-    catch(e){ return 'R$ ' + (Number(v)||0).toFixed(2); }
-  }
-  function calcSafe(b){
-    try { if(typeof calcFrom === 'function') return calcFrom(b); } catch(e){}
-    return {final:Number(b.negociado || b.valor || 0) || 0};
-  }
-  function paidSafe(b){
-    try { if(typeof paymentTotal === 'function') return paymentTotal(b); } catch(e){}
-    if(Array.isArray(b.payments)) return b.payments.reduce((s,p)=>s+(Number(p.value)||0),0);
-    return Number(b.received)||0;
-  }
-  function progressSafe(id){
-    try { if(typeof progress === 'function') return progress(id); } catch(e){}
-    const tasks=(window.state?.tasks||[]).filter(t=>t.projectId===id);
-    if(!tasks.length) return 0;
-    return Math.round(tasks.filter(t=>t.status==='Concluída').length/tasks.length*100);
-  }
-  function prazoSafe(b){
-    try { if(typeof prazoInfo === 'function') return prazoInfo(b).txt; } catch(e){}
-    return b.entrega || 'Sem prazo';
-  }
-  function brDateSafe(d){
-    try { if(typeof brDate === 'function') return brDate(d); } catch(e){}
-    if(!d) return '-';
-    const [y,m,day] = String(d).slice(0,10).split('-');
-    return day && m && y ? `${day}/${m}/${y}` : '-';
-  }
-  function isOverduePayment(b){
-    const c = calcSafe(b);
-    const due = b.paymentDue || '';
-    if(!due) return false;
-    return (Number(c.final)||0) > paidSafe(b) && new Date(due + 'T23:59:59') < new Date();
-  }
-
-  function renderPanelV50(){
-    const panel = document.getElementById('painel');
-    if(!panel || !panel.classList.contains('active')) return;
-
-    const budgets = Array.isArray(window.state?.budgets) ? window.state.budgets : [];
-    const tasks = Array.isArray(window.state?.tasks) ? window.state.tasks : [];
-
-    const open = budgets.filter(b=>b.status==='Aberto');
-    const closed = budgets.filter(b=>b.status==='Fechado');
-    const lost = budgets.filter(b=>b.status==='Perdido');
-    const active = closed.filter(b=>(b.projectStatus||'Ativo')==='Ativo');
-    const overdue = closed.filter(isOverduePayment);
-    const pendingTasks = tasks.filter(t=>t.status!=='Concluída').length;
-    const toReceive = closed.reduce((s,b)=>s+Math.max(0,calcSafe(b).final-paidSafe(b)),0);
-    const overdueValue = overdue.reduce((s,b)=>s+Math.max(0,calcSafe(b).final-paidSafe(b)),0);
-
-    const top = panel.querySelector('.top');
-    if(top && !document.getElementById('v50Hero')){
-      top.insertAdjacentHTML('afterend', `
-        <div id="v50Hero" class="v50Hero">
-          <div class="v50HeroMain">
-            <small>JM NETO ENGENHARIA</small>
-            <h3>Controle do escritório em tempo real.</h3>
-            <p>Veja comercial, projetos, tarefas e pagamentos sem precisar ficar abrindo aba por aba.</p>
-            <div class="btns" style="margin-top:20px">
-              <button class="btn primary" onclick="go('orcamento')">Novo orçamento</button>
-              <button class="btn" onclick="go('financeiro')">Financeiro</button>
-              <button class="btn" onclick="go('projetos')">Projetos</button>
-            </div>
-          </div>
-          <div class="v50HeroSide">
-            <div>
-              <h3>Recebimento pendente</h3>
-              <p>Total que ainda falta entrar nos projetos fechados.</p>
-            </div>
-            <strong id="v50HeroReceive">${moneySafe(toReceive)}</strong>
-          </div>
-        </div>
-      `);
+    if(typeof prefEditing !== 'undefined' && prefEditing){
+      return renderPrefEditor(prefEditing);
     }
 
-    if(document.getElementById('v50HeroReceive')){
-      v50HeroReceive.textContent = moneySafe(toReceive);
-    }
+    const projects = state.budgets.filter(b => b.status === 'Fechado');
+    const filters = ['Todos','Protocolados','Com exigência','Aprovados','Não protocolados','Indeferidos'];
 
-    let kpisEl = document.getElementById('kpis');
-    let funilEl = document.getElementById('funil');
-    let homeEl = document.getElementById('homeProjects');
+    const counts = {
+      'Todos': projects.length,
+      'Protocolados': projects.filter(b => prefMatchesFinal(prefStatusFinal(b.id),'Protocolados')).length,
+      'Com exigência': projects.filter(b => prefStatusFinal(b.id) === 'Com exigência').length,
+      'Aprovados': projects.filter(b => prefStatusFinal(b.id) === 'Aprovado').length,
+      'Não protocolados': projects.filter(b => prefStatusFinal(b.id) === 'Não protocolado').length,
+      'Indeferidos': projects.filter(b => prefStatusFinal(b.id) === 'Indeferido').length
+    };
 
-    if(!kpisEl || !funilEl || !homeEl) return;
+    const shown = projects.filter(b => prefMatchesFinal(prefStatusFinal(b.id), prefFilterFinal));
 
-    kpisEl.innerHTML = `
-      <div class="v48Kpi"><strong>${active.length}</strong><span>Projetos em andamento</span></div>
-      <div class="v48Kpi"><strong>${pendingTasks}</strong><span>Tarefas pendentes</span></div>
-      <div class="v48Kpi"><strong>${moneySafe(toReceive)}</strong><span>Valor a receber</span></div>
-      <div class="v48Kpi"><strong>${open.length}</strong><span>Propostas em aberto</span></div>
-      <div class="v48Kpi"><strong>${overdue.length}</strong><span>Pagamentos atrasados</span></div>
-    `;
+    prefEditor.innerHTML = '';
+    prefList.innerHTML = `
+      <div class="prefFilterBar">
+        ${filters.map(f => `<button class="${prefFilterFinal === f ? 'active' : ''}" onclick="window.setPrefFilterFinal('${f}')">${f} <small>(${counts[f]})</small></button>`).join('')}
+      </div>
 
-    funilEl.innerHTML = `
-      <div class="v48Funnel open"><small>Abertos</small><strong>${open.length}</strong><span>${moneySafe(open.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
-      <div class="v48Funnel closed"><small>Fechados</small><strong>${closed.length}</strong><span>${moneySafe(closed.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
-      <div class="v48Funnel lost"><small>Perdidos</small><strong>${lost.length}</strong><span>${moneySafe(lost.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
-      <div class="v48Funnel total"><small>Total no sistema</small><strong>${budgets.length}</strong><span>${moneySafe(budgets.reduce((s,b)=>s+calcSafe(b).final,0))}</span></div>
-    `;
-
-    homeEl.innerHTML = active.length ? active.map(b=>{
-      const p = progressSafe(b.id);
-      return `
-        <div class="v48Project">
-          <div class="v48ProjectTop">
-            <div>
-              <b>${b.cliente || 'Cliente'}</b>
-              <div class="mini">${(b.projetos||[]).join(', ')} • ${prazoSafe(b)}</div>
-            </div>
-            <strong>${moneySafe(calcSafe(b).final)}</strong>
-          </div>
-          <div class="bar" style="margin-top:10px"><i style="width:${p}%"></i></div>
-          <div class="btns" style="margin-top:12px">
-            <button class="btn primary" onclick="state.selectedProject='${b.id}';go('tarefas')">Tarefas</button>
-            <button class="btn" onclick="go('financeiro')">Financeiro</button>
-          </div>
-        </div>
-      `;
-    }).join('') : '<div class="v48Empty">Nenhum projeto em andamento.</div>';
-
-    let overdueBox = document.getElementById('v50OverdueBox');
-    if(!overdueBox){
-      const homeCard = homeEl.closest('.card');
-      if(homeCard){
-        homeCard.insertAdjacentHTML('afterend', `
-          <div id="v50OverdueBox" class="card" style="margin-top:18px">
-            <h3>Pagamentos atrasados</h3>
-            <div id="v50OverdueList"></div>
-          </div>
-        `);
-      }
-    }
-
-    const list = document.getElementById('v50OverdueList');
-    if(list){
-      list.innerHTML = overdue.length ? overdue.map(b=>{
-        const rest = Math.max(0,calcSafe(b).final-paidSafe(b));
-        return `
-          <div class="v50Overdue">
-            <div class="v50OverdueTop">
+      <div class="prefProjectsGrid">
+        ${shown.map(b => {
+          const p = prefFind(b.id) || {status:'Não protocolado', protocol:'', steps:[]};
+          const ds = daysSince(p.move || p.date);
+          return `<div class="prefProjectCard">
+            <div class="projectTopActions">
               <div>
-                <b>${b.cliente || 'Cliente'}</b>
-                <span class="mini">${(b.projetos||[]).join(', ')} • vencimento: ${brDateSafe(b.paymentDue)}</span>
+                <h4>${b.cliente}</h4>
+                <p class="mini">${(b.projetos || []).join(', ')}</p>
               </div>
-              <strong>${moneySafe(rest)}</strong>
+              <span class="pill ${prefClass(p.status)}">${p.status || 'Não protocolado'}</span>
             </div>
-            <div class="btns" style="margin-top:12px">
-              <button class="btn primary" onclick="go('financeiro')">Abrir financeiro</button>
+
+            <div class="prefMeta">
+              <div><small>Protocolo</small><b>${p.protocol || '-'}</b></div>
+              <div><small>Etapas</small><b>${(p.steps || []).length}</b></div>
+              <div><small>Movimentação</small><b>${p.move ? brDate(p.move) : p.date ? brDate(p.date) : '-'}</b></div>
+              <div><small>Parado há</small><b>${ds !== null ? ds + ' dia(s)' : '-'}</b></div>
             </div>
-          </div>
-        `;
-      }).join('') : '<div class="v48Empty">Nenhum pagamento atrasado.</div>';
-    }
-  }
 
-  window.renderPanel = renderPanelV50;
-
-  const oldRenderAll = window.renderAll;
-  window.renderAll = function(){
-    oldRenderAll();
-    renderPanelV50();
+            <button class="btn primary" onclick="openPrefEditor('${b.id}')">Abrir processo</button>
+          </div>`;
+        }).join('') || '<p class="muted">Nenhum projeto neste filtro.</p>'}
+      </div>
+    `;
   };
 
-  document.addEventListener('DOMContentLoaded', renderPanelV50);
-  setTimeout(renderPanelV50, 100);
-  setTimeout(renderPanelV50, 500);
+  window.setPrefFilterFinal = function(filter){
+    prefFilterFinal = filter;
+    renderPrefeitura();
+  };
+
+  function cleanAttachmentNameFinal(name){
+    return String(name || 'arquivo')
+      .replace(/^.*[\\\\/]/,'')
+      .replace(/[_-]+/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+
+  const oldRenderAttachmentsFinal = window.renderAttachments;
+  if(typeof oldRenderAttachmentsFinal === 'function'){
+    window.renderAttachments = function(){
+      oldRenderAttachmentsFinal();
+      if(!document.getElementById('attachList')) return;
+      attachList.querySelectorAll('.fileItem b').forEach(b => {
+        if(!b.dataset.cleanedFinal){
+          b.textContent = cleanAttachmentNameFinal(b.textContent);
+          b.classList.add('cleanFileName');
+          b.dataset.cleanedFinal = '1';
+        }
+      });
+    };
+  }
+
+  const oldRenderBaseFinal = window.renderBase;
+  window.renderBase = function(){
+    oldRenderBaseFinal();
+
+    if(!document.getElementById('baseTables')) return;
+
+    baseTables.classList.toggle('baseEditorLocked', !baseEditingFinal);
+
+    const header = baseTables.querySelector('.baseEditorHeader');
+    if(header && !header.dataset.finalButtons){
+      header.dataset.finalButtons = '1';
+
+      const btns = document.createElement('div');
+      btns.className = 'btns';
+      btns.innerHTML = `
+        <button class="btn primary" onclick="window.enableBaseEditFinal()">Editar base</button>
+        <button class="btn green" onclick="window.saveAndLockBaseFinal()">Salvar alterações</button>
+        <button class="btn" onclick="window.lockBaseFinal()">Bloquear</button>
+      `;
+      header.appendChild(btns);
+    }
+
+    let notice = baseTables.querySelector('.baseEditNotice');
+    if(!notice){
+      notice = document.createElement('div');
+      notice.className = 'baseEditNotice';
+      baseTables.insertBefore(notice, baseTables.children[1]);
+    }
+    notice.textContent = baseEditingFinal
+      ? 'Modo edição ativado. Altere os valores e clique em “Salvar alterações”.'
+      : 'Base bloqueada para evitar mudanças sem querer. Clique em “Editar base” para liberar.';
+
+    baseTables.querySelectorAll('[data-base]').forEach(inp => {
+      inp.disabled = !baseEditingFinal;
+    });
+  };
+
+  window.enableBaseEditFinal = function(){
+    baseEditingFinal = true;
+    renderBase();
+  };
+
+  window.lockBaseFinal = function(){
+    baseEditingFinal = false;
+    renderBase();
+  };
+
+  window.saveAndLockBaseFinal = function(){
+    if(typeof saveBaseEditor === 'function'){
+      saveBaseEditor();
+    }
+    baseEditingFinal = false;
+    renderBase();
+  };
+
+  const oldRenderAllFinal = window.renderAll;
+  window.renderAll = function(){
+    oldRenderAllFinal();
+    renderPrefeitura();
+    renderBase();
+  };
+
+  setTimeout(() => {
+    try{
+      renderPrefeitura();
+      renderBase();
+      if(typeof renderAttachments === 'function') renderAttachments();
+    }catch(e){
+      console.error(e);
+    }
+  }, 100);
 })();
 </script>
 
