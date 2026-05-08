@@ -1221,6 +1221,39 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
   margin-bottom:10px;
 }
 
+
+/* ===== PATCH PREFEITURA FINAL — editor só com movimentação + aprovado verde ===== */
+.prefProjectCard.prefApproved{
+  border-left-color:#16a34a!important;
+  background:#f0fdf4!important;
+  border-color:#bbf7d0!important;
+}
+.prefProjectCard.prefApproved h4,
+.prefProjectCard.prefApproved b{
+  color:#14532d!important;
+}
+.prefProjectCard.prefApproved .prefMeta div{
+  background:#dcfce7!important;
+  border-color:#bbf7d0!important;
+}
+.prefEditorSingle{
+  max-width:760px;
+}
+.prefEditorSingle .field input,
+.prefEditorSingle .field select,
+.prefEditorSingle .field textarea{
+  background:#fff!important;
+}
+.prefApprovedBanner{
+  padding:13px 15px;
+  border-radius:16px;
+  background:#dcfce7;
+  border:1px solid #86efac;
+  color:#166534;
+  font-weight:900;
+  margin:0 0 14px;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -2591,6 +2624,154 @@ init();
   };
 
   setTimeout(applyComboCheckboxLogicFix, 100);
+})();
+</script>
+
+
+<script>
+/* ===== PREFEITURA FINAL: só movimentação, protocolo nela, aprovado verdinho ===== */
+(function(){
+  function prefProjectStatusClassFinal(status){
+    return status === 'Aprovado' ? 'prefApproved' : '';
+  }
+
+  function currentPrefProjectFinal(id){
+    if(typeof prefEnsure === 'function') return prefEnsure(id);
+    state.prefeitura = Array.isArray(state.prefeitura) ? state.prefeitura : [];
+    let p = state.prefeitura.find(x=>x.id===id);
+    if(!p){
+      p = {id, protocol:'', status:'Não protocolado', date:'', move:'', obs:'', steps:[]};
+      state.prefeitura.unshift(p);
+    }
+    if(!Array.isArray(p.steps)) p.steps = [];
+    return p;
+  }
+
+  // Reforça os cards verdes na lista quando estiver aprovado
+  const oldRenderPrefeituraFinal2 = window.renderPrefeitura;
+  window.renderPrefeitura = function(){
+    oldRenderPrefeituraFinal2();
+
+    if(!document.getElementById('prefList')) return;
+
+    document.querySelectorAll('.prefProjectCard').forEach(card=>{
+      const pill = card.querySelector('.pill');
+      if(pill && pill.textContent.trim() === 'Aprovado'){
+        card.classList.add('prefApproved');
+      }
+    });
+  };
+
+  // Substitui editor: remove parte de cima e deixa só protocolo + movimentação
+  window.renderPrefEditor = function(id){
+    const b = state.budgets.find(x=>x.id===id);
+    const p = currentPrefProjectFinal(id);
+
+    prefList.innerHTML = '';
+    prefEditor.innerHTML = `
+      <button class="btn prefBack" onclick="closePrefEditor()">← Voltar para projetos</button>
+
+      <div class="prefEditorLayout">
+        <div class="card prefEditorSingle">
+          <h3>${b ? b.cliente : 'Projeto'}</h3>
+          <p class="muted">${b ? (b.projetos||[]).join(', ') : ''}</p>
+
+          ${p.status === 'Aprovado' ? '<div class="prefApprovedBanner">✅ Projeto aprovado na prefeitura</div>' : ''}
+
+          <h3>Nova movimentação</h3>
+
+          <div class="form">
+            <div class="field span2">
+              <label>Número do protocolo</label>
+              <input id="prefProtocol" value="${p.protocol||''}" placeholder="Ex: 2026/00123">
+            </div>
+
+            <div class="field">
+              <label>Etapa</label>
+              <select id="prefStepName">
+                ${['Protocolado','Entrou em análise','Exigência emitida','Correção enviada','Reapresentado','Aprovado','Indeferido','Outro'].map(s=>`<option>${s}</option>`).join('')}
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Data</label>
+              <input id="prefStepDate" type="date" value="${typeof today === 'function' ? today() : new Date().toISOString().slice(0,10)}">
+            </div>
+
+            <div class="field full">
+              <label>Descrição</label>
+              <input id="prefStepDesc" placeholder="Ex: exigência pediu ajuste no quadro de áreas">
+            </div>
+          </div>
+
+          <div class="btns" style="margin-top:14px">
+            <button class="btn primary" onclick="addPrefStep('${id}')">Adicionar movimentação</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Movimentações</h3>
+          <div>
+            ${p.steps.length ? p.steps.map((s,i)=>`
+              <div class="prefStep">
+                <i>${p.steps.length-i}</i>
+                <div>
+                  <b>${s.name}</b><br>
+                  <span class="mini">${typeof brDate === 'function' ? brDate(s.date) : s.date} • ${s.desc||''}</span>
+                </div>
+                <button class="btn red" onclick="delPrefStep('${id}','${s.id}')">Apagar</button>
+              </div>
+            `).join('') : '<p class="muted">Nenhuma movimentação registrada.</p>'}
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  // Nova movimentação salva protocolo junto e muda status automaticamente
+  window.addPrefStep = function(id){
+    const p = currentPrefProjectFinal(id);
+
+    const protocol = document.getElementById('prefProtocol')?.value?.trim() || '';
+    const name = document.getElementById('prefStepName')?.value || 'Protocolado';
+    const date = document.getElementById('prefStepDate')?.value || (typeof today === 'function' ? today() : new Date().toISOString().slice(0,10));
+    const desc = document.getElementById('prefStepDesc')?.value?.trim() || 'Movimentação registrada.';
+
+    p.protocol = protocol;
+    p.steps.unshift({
+      id: typeof uid === 'function' ? uid() : Date.now().toString(36),
+      name,
+      date,
+      desc
+    });
+    p.move = date;
+
+    if(name === 'Aprovado') p.status = 'Aprovado';
+    else if(name === 'Exigência emitida') p.status = 'Com exigência';
+    else if(name === 'Reapresentado') p.status = 'Reapresentado';
+    else if(name === 'Entrou em análise') p.status = 'Em análise';
+    else if(name === 'Protocolado') p.status = 'Protocolado';
+    else if(name === 'Indeferido') p.status = 'Indeferido';
+
+    if(typeof save === 'function') save();
+    if(typeof toastMsg === 'function') toastMsg('Movimentação adicionada.');
+    renderPrefEditor(id);
+  };
+
+  // Mantém protocolo salvo caso algum botão antigo chame savePref
+  window.savePref = function(id){
+    const p = currentPrefProjectFinal(id);
+    p.protocol = document.getElementById('prefProtocol')?.value?.trim() || p.protocol || '';
+    if(typeof save === 'function') save();
+    if(typeof toastMsg === 'function') toastMsg('Protocolo salvo.');
+    renderPrefEditor(id);
+  };
+
+  setTimeout(()=>{
+    try{
+      if(typeof renderPrefeitura === 'function') renderPrefeitura();
+    }catch(e){ console.error(e); }
+  },100);
 })();
 </script>
 
