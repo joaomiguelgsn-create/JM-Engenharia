@@ -4046,38 +4046,32 @@ init();
 </script>
 
 
-<!-- ===== V59 JM NETO — correção limpa: negociado respeitado + botão contrato real ===== -->
-<script id="jm-v59-final-limpo">
+<!-- ===== V54 JM NETO — data fixa do contrato + validade completa da proposta ===== -->
+<script id="jm-v54-datas-finais">
 (function(){
-  function norm(s){
-    return String(s||'')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g,'')
-      .toLowerCase()
-      .trim();
-  }
-
-  function todayIso(){
+  function isoToday(){
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
   }
 
   function brDateFromIso(iso){
-    const [y,m,d] = String(iso||'').split('-');
-    if(y && m && d) return `${d}/${m}/${y}`;
-    return new Date().toLocaleDateString('pt-BR');
+    if(!iso) return new Date().toLocaleDateString('pt-BR');
+    const [y,m,d] = String(iso).split('-');
+    if(!y || !m || !d) return new Date(iso).toLocaleDateString('pt-BR');
+    return `${d}/${m}/${y}`;
   }
 
   function addDaysIso(iso, days){
-    const [y,m,d] = String(iso || todayIso()).split('-').map(Number);
-    const date = new Date(y, (m||1)-1, d||1);
+    const [y,m,d] = String(iso || isoToday()).split('-').map(Number);
+    const date = new Date(y, (m || 1)-1, d || 1);
     date.setDate(date.getDate() + days);
-    return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-  }
-
-  function moneySafe(v){
-    if(typeof money === 'function') return money(v);
-    return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const yy = date.getFullYear();
+    const mm = String(date.getMonth()+1).padStart(2,'0');
+    const dd = String(date.getDate()).padStart(2,'0');
+    return `${yy}-${mm}-${dd}`;
   }
 
   function saveStateSafe(){
@@ -4087,279 +4081,72 @@ init();
     }catch(e){}
   }
 
-  function budgetById(id){
-    return (window.state?.budgets || []).find(x => String(x.id) === String(id));
-  }
-
-  const FULL_PROJECTS = ['Arquitetônico','Estrutural','Elétrico','Hidrossanitário'];
-
-  function isCombo(p){
-    return norm(p).includes('combo');
-  }
-
-  function hasComboCompleto(b){
-    return (Array.isArray(b?.projetos) ? b.projetos : []).some(isCombo);
-  }
-
-  function expandedProjects(b){
-    const projetos = Array.isArray(b?.projetos) ? b.projetos : [];
-    if(projetos.some(isCombo)) return FULL_PROJECTS.slice();
-
-    const out = [];
-    projetos.forEach(p=>{
-      const k = norm(p);
-      if(!k || isCombo(p)) return;
-      if(k.includes('arquitet')) out.push('Arquitetônico');
-      else if(k.includes('estrut')) out.push('Estrutural');
-      else if(k.includes('eletric')) out.push('Elétrico');
-      else if(k.includes('hidrossanit')) out.push('Hidrossanitário');
-      else out.push(String(p).replace(/^Projeto\s+/i,'').trim());
-    });
-
-    return [...new Set(out)];
-  }
-
-  function comboRate(b){
-    if(hasComboCompleto(b)) return 0.10;
-    const qtd = expandedProjects(b).length;
-    if(qtd === 2) return 0.025;
-    if(qtd === 3) return 0.05;
-    return 0; // 1 projeto ou 4 separados: sem desconto extra. Combo completo é que fica mais vantajoso.
-  }
-
-  function comboLabel(b){
-    if(hasComboCompleto(b)) return 'Combo completo';
-    const qtd = expandedProjects(b).length;
-    if(qtd === 2) return 'Combo 2 projetos';
-    if(qtd === 3) return 'Combo 3 projetos';
-    if(qtd >= 4) return '4 projetos separados';
-    return 'Sem combo';
-  }
-
-  // Desliga a regra antiga do BASE.combo para não empilhar desconto velho com desconto novo.
-  try{
-    if(window.BASE && BASE.combo){
-      BASE.combo['Sem combo'] = 0;
-      BASE.combo['Elétrico + Hidro'] = 0;
-      BASE.combo['Pacote por itens'] = 0;
-      BASE.combo['Combo Completo direto'] = 0;
-    }
-  }catch(e){}
-
-  const calcOriginalV59 = window.calcFrom;
-
-  if(typeof calcOriginalV59 === 'function'){
-    window.calcFrom = function(b){
-      const original = b || {};
-      const rate = comboRate(original);
-      const projetosExpandidos = expandedProjects(original);
-
-      // Calcula sempre em cima dos projetos reais.
-      // Isso evita "Combo Completo" como item sem preço.
-      const cloned = {
-        ...original,
-        projetos: projetosExpandidos.length ? projetosExpandidos : (original.projetos || [])
-      };
-
-      const base = calcOriginalV59.call(this, cloned);
-
-      const calculadoAntesCombo = Number(base.calculado || 0);
-      const descontoComboValor = Math.round(calculadoAntesCombo * rate * 100) / 100;
-      const calculadoComCombo = Math.round((calculadoAntesCombo - descontoComboValor) * 100) / 100;
-
-      // REGRA MAIS IMPORTANTE:
-      // se o usuário digitou "valor negociado", esse valor manda.
-      // NÃO aplica desconto combo por cima do negociado.
-      const negociado = Number(original.negociado || 0);
-      const final = negociado > 0 ? negociado : calculadoComCombo;
-
-      const fatorFinal = calculadoAntesCombo ? final / calculadoAntesCombo : 1;
-
-      const linhas = (base.linhas || []).map(l => ({
-        ...l,
-        valor: Math.round(Number(l.sug || l.valor || 0) * Number(base.fator || 1) * (1 - Number(base.descExtra || 0)) * fatorFinal * 100) / 100
-      }));
-
-      return {
-        ...base,
-        ps: projetosExpandidos,
-        linhas,
-        combo: comboLabel(original),
-        descCombo: rate,
-        comboDiscountRate: rate,
-        comboDiscountValue: descontoComboValor,
-        comboBaseValue: calculadoAntesCombo,
-        calculado: calculadoComCombo,
-        final,
-        pm2: Number(original.area || 0) ? final / Number(original.area || 0) : 0,
-        entrada: final * 0.3,
-        restante: final * 0.7,
-        lucro: final - (Number(original.custo) || 0),
-        receber: Math.max(0, final - (Number(original.received) || 0))
-      };
-    };
-  }
-
-  // Atualiza o painel do cálculo sem aplicar desconto por cima do negociado.
-  const oldUpdateCalc = window.updateCalc;
-  if(typeof oldUpdateCalc === 'function'){
-    window.updateCalc = function(){
-      oldUpdateCalc.apply(this, arguments);
-      try{
-        const b = objFromForm();
-        const c = calcFrom(b);
-        if(window.calcResumo) calcResumo.textContent = `${c.ps.join(', ')} • ${moneySafe(c.pm2)}/m² • ${c.combo}`;
-        if(window.calcDetalhes){
-          const negotiatedMsg = Number(b.negociado || 0) > 0
-            ? '<p class="mini"><b>Observação:</b> o valor negociado foi respeitado; o desconto combo não é aplicado novamente por cima dele.</p>'
-            : '';
-          calcDetalhes.innerHTML = `<div class="rowline"><span>Preço mínimo interno</span><strong>${moneySafe(c.minimo)}</strong></div>
-          <div class="rowline"><span>Base sugerida</span><strong>${moneySafe(c.bruto)}</strong></div>
-          <div class="rowline"><span>Preço máximo interno</span><strong>${moneySafe(c.maximo)}</strong></div>
-          <div class="rowline"><span>Fator total</span><strong>${Number(c.fator||1).toFixed(3)}x</strong></div>
-          <div class="rowline"><span>Desconto combo</span><strong>${(Number(c.descCombo||0)*100).toFixed(1).replace('.',',')}% (${moneySafe(c.comboDiscountValue||0)})</strong></div>
-          <div class="rowline"><span>Desconto extra</span><strong>${(Number(c.descExtra||0)*100).toFixed(0)}%</strong></div>
-          <div class="rowline"><span>Lucro estimado</span><strong>${moneySafe(c.lucro)}</strong></div>
-          ${negotiatedMsg}
-          <p class="mini">Mínimo e máximo são internos; na proposta aparece só o necessário para o cliente.</p>`;
-        }
-      }catch(err){console.error(err);}
-    };
-  }
-
-  // Guarda a renderização REAL do contrato da V53.
-  const renderContractRealV59 = window.openContract;
-
-  function createContract(id){
-    const b = budgetById(id);
-    if(!b){
-      if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
-      else alert('Orçamento não encontrado.');
-      return;
-    }
-
-    if(!b.contractCreatedAt){
-      b.contractCreatedAt = todayIso();
-      b.contractLocked = true;
+  function ensureBudgetDate(b, field){
+    if(!b) return isoToday();
+    if(!b[field]){
+      b[field] = isoToday();
       saveStateSafe();
     }
-
-    if(typeof renderBudgets === 'function') renderBudgets();
-
-    if(typeof toastMsg === 'function') toastMsg('Contrato criado. Agora clique em “Ver contrato”.');
-    else alert('Contrato criado. Agora clique em “Ver contrato”.');
+    return b[field];
   }
 
-  function viewContract(id){
-    const b = budgetById(id);
-    if(!b){
-      if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
-      else alert('Orçamento não encontrado.');
-      return;
-    }
-
-    if(!b.contractCreatedAt){
-      if(typeof toastMsg === 'function') toastMsg('Clique em “Criar contrato” primeiro.');
-      else alert('Clique em “Criar contrato” primeiro.');
-      return;
-    }
-
-    if(typeof renderContractRealV59 !== 'function'){
-      console.error('Renderizador de contrato não encontrado.');
-      if(typeof toastMsg === 'function') toastMsg('Erro ao abrir contrato.');
-      else alert('Erro ao abrir contrato.');
-      return;
-    }
-
-    renderContractRealV59.call(window, id);
-
-    setTimeout(()=>{
-      const root = document.getElementById('proposalPrint');
-      if(!root) return;
-      const data = brDateFromIso(b.contractCreatedAt);
-      root.innerHTML = root.innerHTML.replace(
-        /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
-        `Luís Eduardo Magalhães/BA, ${data}.`
-      );
-    }, 80);
+  function replaceButtonNames(){
+    document.querySelectorAll('button,.btn,a').forEach(el=>{
+      const t = (el.textContent || '').trim().toLowerCase();
+      if(t === 'contrato') el.textContent = 'Criar contrato';
+    });
   }
 
-  window.createContract = createContract;
-  window.viewContract = viewContract;
-  window.openContract = function(id){
-    const b = budgetById(id);
-    if(b?.contractCreatedAt) return viewContract(id);
-    return createContract(id);
-  };
-
-  // Reescreve a linha da tabela. Assim o botão já nasce certo,
-  // em vez de tentar alterar depois.
-  window.budgetRow = function(b, archived=false){
-    const c = calcFrom(b);
-    const st = b.status || 'Aberto';
-
-    const statusClassLocal = (x)=>{
-      if(x === 'Fechado') return 'ok';
-      if(x === 'Perdido') return 'bad';
-      return 'blue';
-    };
-
-    const acts = st === 'Fechado'
-      ? '<span class="pill ok">Em projetos</span>'
-      : st === 'Perdido'
-        ? '<span class="pill bad">Perdido</span>'
-        : `<button class="btn green" onclick="closeBudget('${b.id}')">Fechar</button><button class="btn red" onclick="lostBudget('${b.id}')">Perdido</button>`;
-
-    const contractBtn = b.contractCreatedAt
-      ? `<button class="btn primary" onclick="viewContract('${b.id}')">Ver contrato</button>`
-      : `<button class="btn primary" onclick="createContract('${b.id}')">Criar contrato</button>`;
-
-    const histArg = String(b.cliente || '').replaceAll('\\','\\\\').replaceAll("'","\\'");
-
-    return `<tr class="${archived?'budgetArchived':''}">
-      <td><b>${String(b.cliente||'')}</b><br><span class="muted">${String(b.telefone||'')} ${b.cidade?'• '+String(b.cidade):''}</span><br><span class="mini">${String(b.cpfcnpj||'')} ${b.endereco?'• '+String(b.endereco):''}</span></td>
-      <td>${(c.ps||b.projetos||[]).map(x=>'Projeto '+String(x).replace(/^Projeto\s+/i,'')).join(', ')}</td>
-      <td><span class="areaNowrap">${b.area||0}m²</span></td>
-      <td>${moneySafe(c.final)}<br><span class="mini">${String(b.paymentMethod||'À vista')}</span></td>
-      <td><span class="pill ${st==='Fechado' && typeof projectStatusInfo==='function' ? projectStatusInfo(b).cls : statusClassLocal(st)}">${st==='Fechado' && typeof projectStatusInfo==='function' ? projectStatusInfo(b).txt : st}</span></td>
-      <td><div class="btns">
-        <button class="btn" onclick="editBudget('${b.id}')">Editar</button>
-        <button class="btn" onclick="openProposal('${b.id}')">Proposta</button>
-        ${contractBtn}
-        <button class="btn" onclick="showClientHistory('${histArg}')">Histórico</button>
-        <button class="btn" onclick="duplicateBudget('${b.id}')">Duplicar</button>
-        ${acts}
-        <button class="btn red" onclick="delBudget('${b.id}')">Apagar</button>
-      </div></td>
-    </tr>`;
-  };
-
-  if(typeof renderBudgets === 'function') setTimeout(renderBudgets, 120);
-
-  // Data da proposta: mostra validade com início e fim, sem alterar visual.
-  const proposalOriginalV59 = window.proposalTemp;
-  if(typeof proposalOriginalV59 === 'function'){
-    window.proposalTemp = function(b){
-      if(!b.proposalCreatedAt){
-        b.proposalCreatedAt = todayIso();
-        saveStateSafe();
-      }
-
-      const result = proposalOriginalV59.apply(this, arguments);
+  const oldOpenContract = window.openContract;
+  if(typeof oldOpenContract === 'function'){
+    window.openContract = function(id){
+      const b = window.state?.budgets?.find(x => x.id === id);
+      const contractDate = ensureBudgetDate(b, 'contractCreatedAt');
+      oldOpenContract.apply(this, arguments);
 
       setTimeout(()=>{
         const root = document.getElementById('proposalPrint');
         if(!root) return;
-        const start = brDateFromIso(b.proposalCreatedAt);
-        const end = brDateFromIso(addDaysIso(b.proposalCreatedAt, 7));
+
+        const dataExtenso = brDateFromIso(contractDate);
+        root.innerHTML = root.innerHTML.replace(
+          /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
+          `Luís Eduardo Magalhães/BA, ${dataExtenso}.`
+        );
+
+        // reforça o nome do botão ao voltar/renderizar
+        replaceButtonNames();
+      }, 80);
+    };
+  }
+
+  const oldProposalTemp = window.proposalTemp;
+  if(typeof oldProposalTemp === 'function'){
+    window.proposalTemp = function(b){
+      const proposalDate = ensureBudgetDate(b, 'proposalCreatedAt');
+      const result = oldProposalTemp.apply(this, arguments);
+
+      setTimeout(()=>{
+        const root = document.getElementById('proposalPrint');
+        if(!root) return;
+
+        const start = brDateFromIso(proposalDate);
+        const end = brDateFromIso(addDaysIso(proposalDate, 7));
+
         root.innerHTML = root.innerHTML
           .replace(/<small>Validade<\/small><b>7 dias<\/b>/g, `<small>Validade</small><b>7 dias — ${start} a ${end}</b>`)
           .replace(/<small>Data<\/small><b>.*?<\/b>/g, `<small>Data</small><b>${start}</b>`);
+
+        replaceButtonNames();
       }, 80);
 
       return result;
     };
   }
+
+  document.addEventListener('DOMContentLoaded', replaceButtonNames);
+  document.addEventListener('click', () => setTimeout(replaceButtonNames, 80), true);
+  setTimeout(replaceButtonNames, 200);
 })();
 </script>
 
