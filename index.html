@@ -4151,15 +4151,15 @@ init();
 </script>
 
 
-<!-- ===== JM ABA CONTRATOS V2 ===== -->
-<style>
-.contractsToolbar{
+<!-- ===== JM ABA CONTRATOS V3 — limpa, com filtro e sem duplicar botão ===== -->
+<style id="jm-contracts-v3-style">
+.budgetStatusFilters,.contractsToolbar{
   display:flex;
   gap:8px;
   flex-wrap:wrap;
   margin:0 0 16px;
 }
-.contractsToolbar button{
+.budgetStatusFilters button,.contractsToolbar button{
   border:1px solid var(--line);
   background:#16263b;
   color:#dbeafe;
@@ -4168,7 +4168,7 @@ init();
   font-weight:800;
   cursor:pointer;
 }
-.contractsToolbar button.active{
+.budgetStatusFilters button.active,.contractsToolbar button.active{
   background:linear-gradient(135deg,var(--gold),#f8d982);
   color:#101827;
   border-color:var(--gold);
@@ -4190,10 +4190,7 @@ init();
   gap:12px;
   align-items:flex-start;
 }
-.contractCard h4{
-  margin:0 0 6px;
-  font-size:17px;
-}
+.contractCard h4{margin:0 0 6px;font-size:17px}
 .contractMeta{
   display:flex;
   flex-wrap:wrap;
@@ -4210,12 +4207,10 @@ init();
   font-size:11px;
   font-weight:800;
 }
-@media(max-width:900px){
-  .contractsGrid{grid-template-columns:1fr}
-}
+@media(max-width:900px){.contractsGrid{grid-template-columns:1fr}}
 </style>
 
-<script>
+<script id="jm-contracts-v3-script">
 (function(){
 
   function todayIsoJM(){
@@ -4240,13 +4235,32 @@ init();
     try{
       if(typeof save === 'function') save();
       else localStorage.setItem('jm_v15_online_backup', JSON.stringify(window.state || {}));
-    }catch(e){ console.error(e); }
+    }catch(e){console.error(e)}
   }
 
-  function getBudgetJM(id){
+  function budgetByIdJM(id){
     return (window.state && Array.isArray(window.state.budgets))
       ? window.state.budgets.find(b => String(b.id) === String(id))
       : null;
+  }
+
+  function statusOfBudgetJM(b){
+    const s = b.status || 'Aberto';
+    if(s === 'Fechado'){
+      const ps = b.projectStatus || 'Ativo';
+      if(ps === 'Concluído') return 'Concluído';
+      if(ps === 'Pausado') return 'Pausado';
+      if(ps === 'Cancelado') return 'Cancelado';
+      return 'Fechado';
+    }
+    if(s === 'Perdido') return 'Perdido';
+    return 'Aberto';
+  }
+
+  function budgetMatchesFilterJM(b){
+    const f = window.state.budgetFilter || 'Todos';
+    if(f === 'Todos') return true;
+    return statusOfBudgetJM(b) === f;
   }
 
   function projectNamesJM(b){
@@ -4267,16 +4281,16 @@ init();
     return ps.slice(0,-1).join(', ') + ' e ' + ps[ps.length-1];
   }
 
-  function hasProjectJM(b, filter){
+  function contractMatchesFilterJM(b, filter){
     if(filter === 'Todos') return true;
     const raw = (b.projetos || []).join(' ').toLowerCase();
     if(filter === 'Combo completo') return raw.includes('combo');
     return projectNamesJM(b).some(p => p.toLowerCase().includes(filter.toLowerCase()));
   }
 
-  // guarda a função real que desenha/abre o contrato
-  if(typeof window.openContract === 'function' && !window.__jmRenderContractContractsV2){
-    window.__jmRenderContractContractsV2 = window.openContract;
+  // Salva a função real de abrir contrato que já existe no arquivo.
+  if(typeof window.openContract === 'function' && !window.__jmRealOpenContractV3){
+    window.__jmRealOpenContractV3 = window.openContract;
   }
 
   function ensureContractsSectionJM(){
@@ -4308,6 +4322,21 @@ init();
     const nav = document.getElementById('nav') || document.querySelector('.nav');
     if(!nav) return;
 
+    // add to pages so title/subtitle works
+    try{
+      if(Array.isArray(window.pages) && !window.pages.some(p => p[0] === 'contratos')){
+        const idx = window.pages.findIndex(p => p[0] === 'clientes');
+        const item = ['contratos','Contratos','Contratos criados e organizados por projeto.'];
+        if(idx >= 0) window.pages.splice(idx + 1, 0, item);
+        else window.pages.push(item);
+      }else if(typeof pages !== 'undefined' && Array.isArray(pages) && !pages.some(p => p[0] === 'contratos')){
+        const idx = pages.findIndex(p => p[0] === 'clientes');
+        const item = ['contratos','Contratos','Contratos criados e organizados por projeto.'];
+        if(idx >= 0) pages.splice(idx + 1, 0, item);
+        else pages.push(item);
+      }
+    }catch(e){}
+
     if(!document.getElementById('nav_contratos')){
       const btn = document.createElement('button');
       btn.id = 'nav_contratos';
@@ -4320,7 +4349,173 @@ init();
     }
   }
 
-  window.renderContractsJM = function(){
+  function ensureBudgetFiltersJM(){
+    const table = document.getElementById('budgetRows');
+    if(!table) return;
+    const card = table.closest('.card') || table.parentElement;
+    if(!card || document.getElementById('budgetStatusFilters')) return;
+
+    const div = document.createElement('div');
+    div.id = 'budgetStatusFilters';
+    div.className = 'budgetStatusFilters';
+    const h3 = card.querySelector('h3');
+    if(h3) h3.insertAdjacentElement('afterend', div);
+    else card.insertBefore(div, card.firstChild);
+  }
+
+  window.setBudgetFilterJM = function(f){
+    window.state.budgetFilter = f;
+    saveJM();
+    renderBudgetsJMFinal();
+  };
+
+  function renderBudgetFiltersJM(){
+    ensureBudgetFiltersJM();
+    const el = document.getElementById('budgetStatusFilters');
+    if(!el) return;
+    const selected = window.state.budgetFilter || 'Todos';
+    const filters = ['Todos','Aberto','Fechado','Concluído','Pausado','Cancelado','Perdido'];
+    el.innerHTML = filters.map(f => {
+      const count = (window.state.budgets || []).filter(b => f === 'Todos' || statusOfBudgetJM(b) === f).length;
+      return `<button class="${selected===f?'active':''}" onclick="setBudgetFilterJM('${f}')">${f} (${count})</button>`;
+    }).join('');
+  }
+
+  function budgetRowJMFinal(b, archived=false){
+    const c = typeof calcFrom === 'function' ? calcFrom(b) : {final:0};
+    const st = b.status || 'Aberto';
+
+    const statusClass = st === 'Fechado'
+      ? (typeof projectStatusInfo === 'function' ? projectStatusInfo(b).cls : 'ok')
+      : st === 'Perdido'
+        ? 'bad'
+        : 'blue';
+
+    const statusText = st === 'Fechado'
+      ? (typeof projectStatusInfo === 'function' ? projectStatusInfo(b).txt : 'Fechado')
+      : st;
+
+    const acts = st === 'Fechado'
+      ? '<span class="pill ok">Em projetos</span>'
+      : st === 'Perdido'
+        ? '<span class="pill bad">Perdido</span>'
+        : `<button class="btn green" onclick="closeBudget('${argJM(b.id)}')">Fechar</button><button class="btn red" onclick="lostBudget('${argJM(b.id)}')">Perdido</button>`;
+
+    const label = b.contractCreatedAt ? 'Criar novo contrato' : 'Criar contrato';
+    const contractBtn = `<button class="btn primary" onclick="createContractJMFinal('${argJM(b.id)}')">${label}</button>`;
+
+    const valor = typeof money === 'function' ? money(c.final || 0) : (c.final || 0);
+    const clienteArg = typeof safeArg === 'function' ? safeArg(b.cliente) : argJM(b.cliente);
+
+    return `<tr class="${archived?'budgetArchived':''}">
+      <td><b>${escJM(b.cliente || '')}</b><br><span class="muted">${escJM(b.telefone || '')} ${b.cidade ? '• '+escJM(b.cidade) : ''}</span><br><span class="mini">${escJM(b.endereco || '')}</span></td>
+      <td>${escJM((b.projetos || []).join(', '))}</td>
+      <td><span class="areaNowrap">${escJM(b.area || 0)}m²</span></td>
+      <td>${valor}</td>
+      <td><span class="pill ${statusClass}">${escJM(statusText)}</span></td>
+      <td><div class="btns">
+        <button class="btn" onclick="editBudget('${argJM(b.id)}')">Editar</button>
+        <button class="btn" onclick="openProposal('${argJM(b.id)}')">Proposta</button>
+        ${contractBtn}
+        <button class="btn" onclick="showClientHistory('${clienteArg}')">Histórico</button>
+        <button class="btn" onclick="duplicateBudget('${argJM(b.id)}')">Duplicar</button>
+        ${acts}
+        <button class="btn red" onclick="delBudget('${argJM(b.id)}')">Apagar</button>
+      </div></td>
+    </tr>`;
+  }
+
+  window.renderBudgetsJMFinal = function(){
+    renderBudgetFiltersJM();
+
+    const tbody = document.getElementById('budgetRows');
+    if(!tbody) return;
+
+    const filtered = (window.state.budgets || []).filter(budgetMatchesFilterJM);
+    const open = filtered.filter(b => (b.status || 'Aberto') === 'Aberto');
+    const archived = filtered.filter(b => (b.status || 'Aberto') !== 'Aberto');
+
+    let out = '';
+    if(open.length){
+      out += `<tr class="budgetGroupRow"><td colspan="6">Orçamentos em aberto</td></tr>` + open.map(b => budgetRowJMFinal(b,false)).join('');
+    }
+    if(archived.length){
+      out += `<tr class="budgetGroupRow"><td colspan="6">Arquivados / fechados / perdidos</td></tr>` + archived.map(b => budgetRowJMFinal(b,true)).join('');
+    }
+
+    tbody.innerHTML = out || '<tr><td colspan="6" class="muted">Nenhum orçamento neste filtro.</td></tr>';
+  };
+
+  // Override definitivo da renderização de orçamentos
+  window.budgetRow = budgetRowJMFinal;
+  window.renderBudgets = window.renderBudgetsJMFinal;
+  try{ budgetRow = budgetRowJMFinal; renderBudgets = window.renderBudgetsJMFinal; }catch(e){}
+
+  window.createContractJMFinal = function(id){
+    const b = budgetByIdJM(id);
+    if(!b){
+      if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
+      return;
+    }
+
+    if(b.contractCreatedAt){
+      const ok = confirm('Já existe contrato para este orçamento. Deseja criar um novo? Isso atualizará a data do contrato existente.');
+      if(!ok){
+        ensureContractsSectionJM();
+        ensureContractsNavJM();
+        window.renderContractsJMFinal();
+        if(typeof go === 'function') go('contratos');
+        return;
+      }
+    }
+
+    b.contractCreatedAt = todayIsoJM();
+    b.contractLocked = true;
+    saveJM();
+
+    window.renderBudgetsJMFinal();
+    window.renderContractsJMFinal();
+
+    if(typeof go === 'function') go('contratos');
+    if(typeof toastMsg === 'function') toastMsg('Contrato criado na aba Contratos.');
+  };
+
+  window.deleteContractJMFinal = function(id){
+    const b = budgetByIdJM(id);
+    if(!b) return;
+    const ok = confirm('Deseja excluir este contrato da aba Contratos? O orçamento continuará existindo.');
+    if(!ok) return;
+    delete b.contractCreatedAt;
+    delete b.contractLocked;
+    saveJM();
+    window.renderBudgetsJMFinal();
+    window.renderContractsJMFinal();
+  };
+
+  window.viewContractJMFinal = function(id){
+    const b = budgetByIdJM(id);
+    if(!b){
+      if(typeof toastMsg === 'function') toastMsg('Contrato não encontrado.');
+      return;
+    }
+    if(typeof window.__jmRealOpenContractV3 === 'function'){
+      window.__jmRealOpenContractV3(id);
+    }else if(typeof toastMsg === 'function'){
+      toastMsg('Erro ao abrir contrato.');
+    }
+
+    setTimeout(function(){
+      const root = document.getElementById('proposalPrint');
+      if(!root || !b.contractCreatedAt) return;
+      const data = brDateJM(b.contractCreatedAt);
+      root.innerHTML = root.innerHTML.replace(
+        /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
+        `Luís Eduardo Magalhães/BA, ${data}.`
+      );
+    }, 100);
+  };
+
+  window.renderContractsJMFinal = function(){
     ensureContractsSectionJM();
     ensureContractsNavJM();
 
@@ -4332,12 +4527,12 @@ init();
     const options = ['Todos','Arquitetônico','Estrutural','Elétrico','Hidrossanitário','Combo completo'];
 
     filters.innerHTML = options.map(o =>
-      `<button class="${selected===o?'active':''}" onclick="state.contractFilter='${o}';saveJM();renderContractsJM()">${o}</button>`
+      `<button class="${selected===o?'active':''}" onclick="state.contractFilter='${o}';saveJM();renderContractsJMFinal()">${o}</button>`
     ).join('');
 
     const contracts = (window.state.budgets || [])
       .filter(b => b.contractCreatedAt)
-      .filter(b => hasProjectJM(b, selected));
+      .filter(b => contractMatchesFilterJM(b, selected));
 
     if(!contracts.length){
       wrap.innerHTML = `<div class="emptyState">Nenhum contrato criado nesta categoria.</div>`;
@@ -4363,157 +4558,55 @@ init();
             <span>${escJM(b.cidade || 'Cidade não informada')}</span>
           </div>
           <div class="btns">
-            <button class="btn primary" onclick="viewContractFromTabJM('${argJM(b.id)}')">Abrir contrato</button>
+            <button class="btn primary" onclick="viewContractJMFinal('${argJM(b.id)}')">Abrir contrato</button>
             <button class="btn" onclick="openProposal('${argJM(b.id)}')">Ver proposta</button>
-            <button class="btn red" onclick="deleteContractJM('${argJM(b.id)}')">Excluir contrato</button>
+            <button class="btn red" onclick="deleteContractJMFinal('${argJM(b.id)}')">Excluir contrato</button>
           </div>
         </div>`;
     }).join('') + `</div>`;
   };
 
-  window.createContractAndGoJM = function(id){
-    const b = getBudgetJM(id);
-    if(!b){
-      if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
-      return;
-    }
-
-    if(b.contractCreatedAt){
-      const ok = confirm('Já existe contrato para este orçamento. Deseja criar um novo? Isso atualizará a data do contrato existente.');
-      if(!ok) {
-        if(typeof go === 'function') go('contratos');
-        window.renderContractsJM();
-        return;
-      }
-    }
-
-    b.contractCreatedAt = todayIsoJM();
-    b.contractLocked = true;
-    saveJM();
-
-    ensureContractsSectionJM();
-    ensureContractsNavJM();
-
-    if(typeof renderBudgets === 'function') renderBudgets();
-    window.renderContractsJM();
-
-    if(typeof go === 'function') go('contratos');
-
-    if(typeof toastMsg === 'function') toastMsg('Contrato criado na aba Contratos.');
-  };
-
-  window.deleteContractJM = function(id){
-    const b = getBudgetJM(id);
-    if(!b) return;
-    const ok = confirm('Deseja excluir este contrato da aba Contratos? O orçamento continuará existindo.');
-    if(!ok) return;
-    delete b.contractCreatedAt;
-    delete b.contractLocked;
-    saveJM();
-    if(typeof renderBudgets === 'function') renderBudgets();
-    window.renderContractsJM();
-  };
-
-  window.viewContractFromTabJM = function(id){
-    const b = getBudgetJM(id);
-    if(!b){
-      if(typeof toastMsg === 'function') toastMsg('Contrato não encontrado.');
-      return;
-    }
-
-    if(typeof window.__jmRenderContractContractsV2 === 'function'){
-      window.__jmRenderContractContractsV2(id);
-    }else if(typeof toastMsg === 'function'){
-      toastMsg('Erro ao abrir contrato.');
-    }
-
-    setTimeout(function(){
-      const root = document.getElementById('proposalPrint');
-      if(!root || !b.contractCreatedAt) return;
-      const data = brDateJM(b.contractCreatedAt);
-      root.innerHTML = root.innerHTML.replace(
-        /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
-        `Luís Eduardo Magalhães/BA, ${data}.`
-      );
-    }, 100);
-  };
-
-  function installBudgetRowCleanJM(){
-    if(typeof window.budgetRow !== 'function' || window.__jmContractsV2BudgetRowInstalled) return;
-    window.__jmContractsV2BudgetRowInstalled = true;
-
-    const oldBudgetRow = window.budgetRow;
-
-    window.budgetRow = function(b, archived=false){
-      let row = oldBudgetRow.call(this,b,archived);
-
-      // remove botões duplicados criados por patches anteriores, se houver
-      row = row.replace(/<button class="btn primary" onclick="createContractAndGoJM\('[^']+'\)">.*?<\/button>/g,'');
-      row = row.replace(/<button class="btn primary" onclick="viewContractFromTabJM\('[^']+'\)">.*?<\/button>/g,'');
-
-      const label = b.contractCreatedAt ? 'Criar novo contrato' : 'Criar contrato';
-      const btn = `<button class="btn primary" onclick="createContractAndGoJM('${argJM(b.id)}')">${label}</button>`;
-
-      // coloca apenas um botão depois de Proposta
-      if(row.includes('openProposal(')){
-        row = row.replace(/(<button class="btn" onclick="openProposal\('[^']+'\)">Proposta<\/button>)/, `$1${btn}`);
-      }else{
-        row = row.replace('</div></td></tr>', `${btn}</div></td></tr>`);
-      }
-
-      return row;
-    };
-
-    try{ budgetRow = window.budgetRow; }catch(e){}
-  }
-
-  const oldRenderAllJM = window.renderAll;
-  if(typeof oldRenderAllJM === 'function' && !window.__jmContractsV2RenderAllWrapped){
-    window.__jmContractsV2RenderAllWrapped = true;
-    window.renderAll = function(){
-      ensureContractsSectionJM();
-      ensureContractsNavJM();
-      installBudgetRowCleanJM();
-      const r = oldRenderAllJM.apply(this, arguments);
-      setTimeout(function(){
-        ensureContractsSectionJM();
-        ensureContractsNavJM();
-        installBudgetRowCleanJM();
-        window.renderContractsJM();
-      }, 50);
-      return r;
-    };
-    try{ renderAll = window.renderAll; }catch(e){}
-  }
-
+  // Hook go/renderAll para a aba existir e atualizar.
   const oldGoJM = window.go;
-  if(typeof oldGoJM === 'function' && !window.__jmContractsV2GoWrapped){
-    window.__jmContractsV2GoWrapped = true;
+  if(typeof oldGoJM === 'function' && !window.__jmGoContractsV3){
+    window.__jmGoContractsV3 = true;
     window.go = function(p){
       ensureContractsSectionJM();
       ensureContractsNavJM();
-      installBudgetRowCleanJM();
       const r = oldGoJM.apply(this, arguments);
-      if(p === 'contratos') window.renderContractsJM();
+      if(p === 'clientes') window.renderBudgetsJMFinal();
+      if(p === 'contratos') window.renderContractsJMFinal();
       return r;
     };
     try{ go = window.go; }catch(e){}
   }
 
+  const oldRenderAllJM = window.renderAll;
+  if(typeof oldRenderAllJM === 'function' && !window.__jmRenderAllContractsV3){
+    window.__jmRenderAllContractsV3 = true;
+    window.renderAll = function(){
+      ensureContractsSectionJM();
+      ensureContractsNavJM();
+      const r = oldRenderAllJM.apply(this, arguments);
+      window.renderBudgetsJMFinal();
+      window.renderContractsJMFinal();
+      return r;
+    };
+    try{ renderAll = window.renderAll; }catch(e){}
+  }
+
   document.addEventListener('DOMContentLoaded', function(){
     ensureContractsSectionJM();
     ensureContractsNavJM();
-    installBudgetRowCleanJM();
-    if(typeof renderBudgets === 'function') renderBudgets();
-    window.renderContractsJM();
+    window.renderBudgetsJMFinal();
+    window.renderContractsJMFinal();
   });
 
   setTimeout(function(){
     ensureContractsSectionJM();
     ensureContractsNavJM();
-    installBudgetRowCleanJM();
-    if(typeof renderBudgets === 'function') renderBudgets();
-    window.renderContractsJM();
+    window.renderBudgetsJMFinal();
+    window.renderContractsJMFinal();
   }, 300);
 
 })();
