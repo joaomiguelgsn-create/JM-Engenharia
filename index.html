@@ -4875,11 +4875,12 @@ init();
 </script>
 
 
-<script id="jm-filtros-clientes-orcamentos-v55">
+<script id="jm-filtro-clientes-orcamentos-unico-v60">
 (function(){
   'use strict';
-  if(window.__JM_FILTROS_CLIENTES_ORCAMENTOS_V55__) return;
-  window.__JM_FILTROS_CLIENTES_ORCAMENTOS_V55__ = true;
+
+  if(window.__JM_FILTRO_CLIENTES_ORCAMENTOS_UNICO_V60__) return;
+  window.__JM_FILTRO_CLIENTES_ORCAMENTOS_UNICO_V60__ = true;
 
   const FILTROS = ['Todos','Aberto','Fechado','Concluído','Pausado','Cancelado','Perdido'];
 
@@ -4890,198 +4891,267 @@ init();
         return state;
       }
     }catch(e){}
-    if(window.state && Array.isArray(window.state.budgets)) return window.state;
 
-    try{
-      const raw = localStorage.getItem('jm_v15_online_backup') || localStorage.getItem('jm_v14_estavel');
-      const st = raw ? JSON.parse(raw) : {budgets:[]};
-      if(!Array.isArray(st.budgets)) st.budgets = [];
-      window.state = st;
-      return st;
-    }catch(e){
-      window.state = {budgets:[]};
+    if(window.state && Array.isArray(window.state.budgets)){
       return window.state;
     }
+
+    const keys = [
+      'jm_v15_online_backup',
+      'jm_v14_estavel',
+      'jm_neto_engenharia',
+      'jmNetoEngenharia'
+    ];
+
+    for(const key of keys){
+      try{
+        const raw = localStorage.getItem(key);
+        if(!raw) continue;
+        const parsed = JSON.parse(raw);
+        if(parsed && Array.isArray(parsed.budgets)){
+          window.state = parsed;
+          return parsed;
+        }
+      }catch(e){}
+    }
+
+    window.state = {budgets:[], budgetFilter:'Todos'};
+    return window.state;
   }
 
   function saveState(){
     const st = getState();
+
+    try{
+      if(typeof state !== 'undefined' && state){
+        state.budgetFilter = st.budgetFilter || 'Todos';
+      }
+    }catch(e){}
+
     try{
       localStorage.setItem('jm_v15_online_backup', JSON.stringify(st));
       localStorage.setItem('jm_v14_estavel', JSON.stringify(st));
     }catch(e){}
-    try{ if(typeof queueCloudSave === 'function') queueCloudSave(); }catch(e){}
+
+    try{
+      if(typeof queueCloudSave === 'function') queueCloudSave();
+    }catch(e){}
   }
 
-  function esc(v){
-    return String(v ?? '').replace(/[&<>"']/g, m => ({
-      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-    }[m]));
+  function normalizeText(v){
+    return String(v || '')
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'')
+      .toLowerCase();
   }
 
-  function arg(v){
-    return String(v ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  }
+  function getFiltroStatus(b){
+    const statusRaw = String((b && b.status) || 'Aberto').trim();
+    const projectRaw = String((b && (b.projectStatus || b.andamentoStatus || b.statusProjeto)) || '').trim();
 
-  function statusFiltro(b){
-    const status = String((b && b.status) || 'Aberto').trim();
-    const projectStatus = String((b && b.projectStatus) || '').trim();
+    const status = normalizeText(statusRaw);
+    const project = normalizeText(projectRaw);
 
-    if(status === 'Perdido') return 'Perdido';
-    if(status === 'Cancelado') return 'Cancelado';
+    if(status === 'perdido') return 'Perdido';
+    if(status === 'cancelado') return 'Cancelado';
 
-    if(status === 'Fechado'){
-      if(projectStatus === 'Concluído' || projectStatus === 'Concluido') return 'Concluído';
-      if(projectStatus === 'Pausado') return 'Pausado';
-      if(projectStatus === 'Cancelado') return 'Cancelado';
+    if(status === 'fechado'){
+      if(project === 'concluido' || project === 'concluído') return 'Concluído';
+      if(project === 'pausado') return 'Pausado';
+      if(project === 'cancelado') return 'Cancelado';
       return 'Fechado';
     }
+
+    if(status === 'concluido' || status === 'concluído') return 'Concluído';
+    if(status === 'pausado') return 'Pausado';
 
     return 'Aberto';
   }
 
-  function ensureFilterBar(){
-    const rows = document.getElementById('budgetRows');
-    if(!rows) return null;
-
-    let bar = document.getElementById('budgetStatusFilters');
-    if(!bar){
-      bar = document.createElement('div');
-      bar.id = 'budgetStatusFilters';
-      bar.className = 'budgetStatusFilters';
-
-      const table = rows.closest('table');
-      if(table && table.parentNode) table.parentNode.insertBefore(bar, table);
-      else rows.parentNode.insertBefore(bar, rows);
-    }
-    return bar;
+  function countFor(filtro){
+    const st = getState();
+    const list = Array.isArray(st.budgets) ? st.budgets : [];
+    if(filtro === 'Todos') return list.length;
+    return list.filter(b => getFiltroStatus(b) === filtro).length;
   }
 
-  function renderFilters(){
+  function findFilterContainer(){
+    return (
+      document.getElementById('budgetStatusFilters') ||
+      document.querySelector('.budgetStatusFilters') ||
+      document.querySelector('.financeFilters[data-budget-filters]') ||
+      document.querySelector('.projectStatusFilters[data-budget-filters]') ||
+      document.querySelector('#budgetRows')?.closest('.card')?.querySelector('.projectStatusFilters') ||
+      document.querySelector('#budgetRows')?.closest('.card')?.querySelector('.financeFilters')
+    );
+  }
+
+  function ensureFilterContainer(){
+    let box = findFilterContainer();
+    const rows = document.getElementById('budgetRows');
+    if(box) {
+      box.id = 'budgetStatusFilters';
+      box.dataset.budgetFilters = 'true';
+      return box;
+    }
+
+    if(!rows) return null;
+
+    box = document.createElement('div');
+    box.id = 'budgetStatusFilters';
+    box.className = 'projectStatusFilters';
+    box.dataset.budgetFilters = 'true';
+
+    const table = rows.closest('table');
+    if(table && table.parentNode){
+      table.parentNode.insertBefore(box, table);
+    }else{
+      rows.parentNode.insertBefore(box, rows);
+    }
+
+    return box;
+  }
+
+  function updateFilterButtons(){
+    const box = ensureFilterContainer();
+    if(!box) return;
+
     const st = getState();
-    const budgets = Array.isArray(st.budgets) ? st.budgets : [];
-    const selected = st.budgetFilter || 'Todos';
-    const bar = ensureFilterBar();
-    if(!bar) return;
+    const active = st.budgetFilter || 'Todos';
 
-    bar.innerHTML = FILTROS.map(f => {
-      const count = f === 'Todos'
-        ? budgets.length
-        : budgets.filter(b => statusFiltro(b) === f).length;
-
-      return `<button type="button" data-budget-filter="${esc(f)}" class="${selected === f ? 'active' : ''}">${esc(f)} (${count})</button>`;
+    box.innerHTML = FILTROS.map(f => {
+      const selected = active === f ? 'active' : '';
+      return `<button type="button" class="${selected}" data-budget-filter="${f}">${f} (${countFor(f)})</button>`;
     }).join('');
   }
 
-  function fallbackBudgetRow(b, archived){
-    const c = (typeof calcFrom === 'function') ? calcFrom(b) : {final:0};
-    const valor = (typeof money === 'function') ? money(c.final || 0) : String(c.final || 0);
-    const sf = statusFiltro(b);
-    const raw = String(b.status || 'Aberto');
-    const cls = (sf === 'Fechado' || sf === 'Concluído') ? 'ok' : (sf === 'Pausado' ? 'warn' : ((sf === 'Cancelado' || sf === 'Perdido') ? 'bad' : 'blue'));
-    const st = getState();
-    const hasContracts = Array.isArray(st.contracts) && st.contracts.some(ct => String(ct.budgetId) === String(b.id));
-    const acts = raw === 'Fechado'
-      ? '<span class="pill ok">Em projetos</span>'
-      : raw === 'Perdido'
-        ? '<span class="pill bad">Perdido</span>'
-        : `<button class="btn green" onclick="closeBudget('${arg(b.id)}')">Fechar</button><button class="btn red" onclick="lostBudget('${arg(b.id)}')">Perdido</button>`;
+  function rowStatusMatches(row, filtro){
+    if(filtro === 'Todos') return true;
 
-    return `<tr data-budget-id="${esc(b.id)}" class="${archived ? 'budgetArchived' : ''}">
-      <td><b>${esc(b.cliente)}</b><br><span class="muted">${esc(b.telefone || '')} ${b.cidade ? '• ' + esc(b.cidade) : ''}</span><br><span class="mini">${esc(b.endereco || '')}</span></td>
-      <td>${esc((b.projetos || []).join(', '))}</td>
-      <td><span class="areaNowrap">${esc(b.area || 0)}m²</span></td>
-      <td>${esc(valor)}</td>
-      <td><span class="pill ${cls}">${esc(sf)}</span></td>
-      <td><div class="btns">
-        <button class="btn" onclick="editBudget('${arg(b.id)}')">Editar</button>
-        <button class="btn" onclick="openProposal('${arg(b.id)}')">Proposta</button>
-        <button class="btn primary" onclick="createContractJMFinal('${arg(b.id)}')">${hasContracts ? 'Criar novo contrato' : 'Criar contrato'}</button>
-        <button class="btn" onclick="showClientHistory('${arg(b.cliente)}')">Histórico</button>
-        <button class="btn" onclick="duplicateBudget('${arg(b.id)}')">Duplicar</button>
-        ${acts}
-        <button class="btn red" onclick="delBudget('${arg(b.id)}')">Apagar</button>
-      </div></td>
-    </tr>`;
+    const id = row.getAttribute('data-budget-id') || row.dataset.budgetId || '';
+    const st = getState();
+    const b = (st.budgets || []).find(x => String(x.id) === String(id));
+
+    if(b) return getFiltroStatus(b) === filtro;
+
+    // fallback visual, caso alguma linha não tenha data-budget-id
+    const txt = normalizeText(row.textContent || '');
+    if(filtro === 'Concluído') return txt.includes('concluido');
+    return txt.includes(normalizeText(filtro));
   }
 
-  const originalBudgetRow = (typeof window.budgetRow === 'function') ? window.budgetRow : null;
+  function applyVisualFilter(){
+    const st = getState();
+    const filtro = st.budgetFilter || 'Todos';
+    const rows = document.querySelectorAll('#budgetRows tr');
 
-  function safeRow(b, archived){
-    try{
-      if(originalBudgetRow) return originalBudgetRow(b, archived);
-    }catch(e){}
-    return fallbackBudgetRow(b, archived);
+    rows.forEach(row => {
+      if(row.classList.contains('budgetGroupRow')){
+        row.style.display = '';
+        return;
+      }
+      row.style.display = rowStatusMatches(row, filtro) ? '' : 'none';
+    });
+
+    // Esconde cabeçalhos de grupo vazios
+    const groupRows = document.querySelectorAll('#budgetRows tr.budgetGroupRow');
+    groupRows.forEach(group => {
+      let next = group.nextElementSibling;
+      let hasVisible = false;
+
+      while(next && !next.classList.contains('budgetGroupRow')){
+        if(next.style.display !== 'none'){
+          hasVisible = true;
+          break;
+        }
+        next = next.nextElementSibling;
+      }
+
+      group.style.display = hasVisible ? '' : 'none';
+    });
   }
 
-  window.setBudgetFilterJMFinal = function(f){
-    const st = getState();
-    st.budgetFilter = f || 'Todos';
-    try{ if(typeof state !== 'undefined' && state) state.budgetFilter = st.budgetFilter; }catch(e){}
-    saveState();
-    window.renderBudgets();
-  };
+  const originalRenderBudgets = (typeof window.renderBudgets === 'function')
+    ? window.renderBudgets
+    : (typeof renderBudgets === 'function' ? renderBudgets : null);
 
   window.renderBudgets = function(){
-    const st = getState();
-    if(!Array.isArray(st.budgets)) st.budgets = [];
+    let result;
 
-    const filter = st.budgetFilter || 'Todos';
-    const rows = document.getElementById('budgetRows');
-
-    renderFilters();
-    if(!rows) return;
-
-    const visible = st.budgets.filter(b => filter === 'Todos' || statusFiltro(b) === filter);
-    const open = visible.filter(b => String(b.status || 'Aberto') === 'Aberto');
-    const archived = visible.filter(b => String(b.status || 'Aberto') !== 'Aberto');
-
-    let html = '';
-    if(open.length){
-      html += `<tr class="budgetGroupRow"><td colspan="6">Orçamentos em aberto — aparecem primeiro</td></tr>`;
-      html += open.map(b => safeRow(b, false)).join('');
-    }
-    if(archived.length){
-      html += `<tr class="budgetGroupRow"><td colspan="6">Arquivados / fechados / perdidos</td></tr>`;
-      html += archived.map(b => safeRow(b, true)).join('');
+    if(typeof originalRenderBudgets === 'function'){
+      result = originalRenderBudgets.apply(this, arguments);
     }
 
-    rows.innerHTML = html || `<tr><td colspan="6" class="muted">Nenhum orçamento encontrado para o filtro “${esc(filter)}”.</td></tr>`;
-    renderFilters();
+    setTimeout(function(){
+      updateFilterButtons();
+      applyVisualFilter();
+    }, 0);
+
+    return result;
   };
 
-  try{ renderBudgets = window.renderBudgets; }catch(e){}
+  try{
+    renderBudgets = window.renderBudgets;
+  }catch(e){}
 
-  document.addEventListener('click', function(ev){
-    const btn = ev.target.closest('#budgetStatusFilters [data-budget-filter]');
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('#budgetStatusFilters button[data-budget-filter], [data-budget-filter]');
     if(!btn) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    window.setBudgetFilterJMFinal(btn.getAttribute('data-budget-filter') || 'Todos');
+
+    const filtro = btn.getAttribute('data-budget-filter') || 'Todos';
+    const st = getState();
+    st.budgetFilter = filtro;
+    saveState();
+
+    updateFilterButtons();
+
+    // Primeiro tenta re-renderizar pelo sistema original.
+    // Depois aplica filtro visual para garantir o resultado mesmo se o render original ignorar budgetFilter.
+    try{
+      window.renderBudgets();
+    }catch(err){
+      applyVisualFilter();
+    }
+
+    setTimeout(applyVisualFilter, 20);
   }, true);
 
-  const oldRenderAll = window.renderAll || (typeof renderAll === 'function' ? renderAll : null);
-  if(typeof oldRenderAll === 'function' && !window.__JM_RENDERALL_FILTROS_V55__){
-    window.__JM_RENDERALL_FILTROS_V55__ = true;
+  const originalRenderAll = (typeof window.renderAll === 'function')
+    ? window.renderAll
+    : (typeof renderAll === 'function' ? renderAll : null);
+
+  if(typeof originalRenderAll === 'function'){
     window.renderAll = function(){
-      try{ if(typeof state !== 'undefined' && state) window.state = state; }catch(e){}
-      const result = oldRenderAll.apply(this, arguments);
-      setTimeout(function(){ try{ window.renderBudgets(); }catch(e){} }, 20);
+      const result = originalRenderAll.apply(this, arguments);
+      setTimeout(function(){
+        try{
+          updateFilterButtons();
+          applyVisualFilter();
+        }catch(e){}
+      }, 30);
       return result;
     };
-    try{ renderAll = window.renderAll; }catch(e){}
+
+    try{
+      renderAll = window.renderAll;
+    }catch(e){}
   }
 
   function boot(){
-    try{ if(typeof state !== 'undefined' && state) window.state = state; }catch(e){}
-    try{ window.renderBudgets(); }catch(e){ renderFilters(); }
+    try{
+      updateFilterButtons();
+      applyVisualFilter();
+    }catch(e){}
   }
 
   document.addEventListener('DOMContentLoaded', function(){
-    setTimeout(boot, 80);
-    setTimeout(boot, 450);
+    setTimeout(boot, 100);
+    setTimeout(boot, 500);
   });
-  setTimeout(boot, 250);
+
+  setTimeout(boot, 150);
+  setTimeout(boot, 800);
 })();
 </script>
 
