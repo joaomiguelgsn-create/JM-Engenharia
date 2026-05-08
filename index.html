@@ -4150,4 +4150,97 @@ init();
 })();
 </script>
 
+
+<!-- ===== V55 JM NETO — criar/ver contrato persistente ===== -->
+<script id="jm-v55-contrato-persistente">
+(function(){
+  function saveStateSafe(){
+    try{
+      if(typeof save === 'function') save();
+      else localStorage.setItem('jmNetoEngenhariaState', JSON.stringify(window.state || {}));
+    }catch(e){}
+  }
+
+  function getBudget(id){
+    return (window.state?.budgets || []).find(x => x.id === id);
+  }
+
+  function renameButtons(){
+    document.querySelectorAll('.btn,button').forEach(btn=>{
+      const txt = (btn.textContent || '').trim().toLowerCase();
+
+      if(txt === 'contrato'){
+        btn.textContent = 'Criar contrato';
+      }
+    });
+
+    // tenta ajustar botões da lista de orçamentos
+    const budgets = window.state?.budgets || [];
+
+    document.querySelectorAll('tr, .budgetRow, .clienteRow, .orcamentoRow, .item').forEach(row=>{
+      const text = row.textContent || '';
+
+      budgets.forEach(b=>{
+        if(!text.includes(b.cliente || '')) return;
+
+        row.querySelectorAll('button,.btn').forEach(btn=>{
+          const t = (btn.textContent || '').trim().toLowerCase();
+
+          if(t === 'criar contrato' || t === 'ver contrato'){
+            btn.textContent = b.contractCreatedAt ? 'Ver contrato' : 'Criar contrato';
+          }
+        });
+      });
+    });
+  }
+
+  const oldOpenContract = window.openContract;
+
+  if(typeof oldOpenContract === 'function'){
+    window.openContract = function(id){
+      const b = getBudget(id);
+      if(!b) return oldOpenContract.apply(this, arguments);
+
+      // cria apenas uma vez
+      if(!b.contractCreatedAt){
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth()+1).padStart(2,'0');
+        const day = String(d.getDate()).padStart(2,'0');
+        b.contractCreatedAt = `${y}-${m}-${day}`;
+        b.contractLocked = true;
+        saveStateSafe();
+      }
+
+      const result = oldOpenContract.apply(this, arguments);
+
+      setTimeout(()=>{
+        renameButtons();
+
+        const root = document.getElementById('proposalPrint');
+        if(!root) return;
+
+        // garante que a data nunca seja alterada
+        const parts = String(b.contractCreatedAt || '').split('-');
+        if(parts.length === 3){
+          const br = `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+          root.innerHTML = root.innerHTML.replace(
+            /Luís Eduardo Magalhães\/BA,\s*[^<]*\./g,
+            `Luís Eduardo Magalhães/BA, ${br}.`
+          );
+        }
+      }, 120);
+
+      return result;
+    };
+  }
+
+  // mantém o texto atualizado sempre
+  document.addEventListener('DOMContentLoaded', renameButtons);
+  document.addEventListener('click', ()=>setTimeout(renameButtons,120), true);
+  setInterval(renameButtons, 2500);
+})();
+</script>
+
 </body></html>
