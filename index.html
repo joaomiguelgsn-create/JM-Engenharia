@@ -4243,4 +4243,170 @@ init();
 })();
 </script>
 
+
+<!-- ===== V56 JM NETO — botão ver contrato real + combos inteligentes ===== -->
+<script id="jm-v56-combos-e-contrato">
+(function(){
+
+  function saveStateSafe(){
+    try{
+      if(typeof save === 'function') save();
+      else localStorage.setItem('jmNetoEngenhariaState', JSON.stringify(window.state || {}));
+    }catch(e){}
+  }
+
+  function norm(s){
+    return String(s||'')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'')
+      .toLowerCase()
+      .trim();
+  }
+
+  // =========================
+  // COMBOS INTELIGENTES
+  // =========================
+  // agora:
+  // 2 projetos = desconto leve
+  // 3 projetos = desconto médio
+  // 4 projetos = desconto combo completo
+  // sem ficar absurdo porque o m² já reduz naturalmente
+
+  const oldCalcFrom = window.calcFrom;
+
+  if(typeof oldCalcFrom === 'function'){
+    window.calcFrom = function(b){
+
+      const c = oldCalcFrom.apply(this, arguments);
+
+      try{
+        const projetos = Array.isArray(b?.projetos) ? b.projetos : [];
+
+        // ignora "combo completo" textual
+        let reais = projetos.filter(p => !norm(p).includes('combo'));
+
+        // se tiver combo completo, considera 4
+        if(projetos.some(p => norm(p).includes('combo'))){
+          reais = [
+            'Projeto Arquitetônico',
+            'Projeto Estrutural',
+            'Projeto Elétrico',
+            'Projeto Hidrossanitário'
+          ];
+        }
+
+        const qtd = reais.length;
+
+        let descontoExtra = 0;
+
+        // DESCONTOS NOVOS
+        if(qtd === 2){
+          descontoExtra = 0.03; // 3%
+        }
+        else if(qtd === 3){
+          descontoExtra = 0.06; // 6%
+        }
+        else if(qtd >= 4){
+          descontoExtra = 0.09; // 9%
+        }
+
+        const baseFinal = Number(c.final || 0);
+
+        // evita desconto absurdo
+        const novoFinal = Math.max(
+          baseFinal * (1 - descontoExtra),
+          baseFinal * 0.88 // nunca passa de 12% total efetivo
+        );
+
+        c.final = Math.round(novoFinal * 100) / 100;
+
+      }catch(err){
+        console.error(err);
+      }
+
+      return c;
+    };
+  }
+
+  // =========================
+  // BOTÃO VER CONTRATO REAL
+  // =========================
+
+  function renameContractButtons(){
+    const budgets = window.state?.budgets || [];
+
+    document.querySelectorAll('button,.btn').forEach(btn=>{
+
+      const onclick = btn.getAttribute('onclick') || '';
+      const txt = (btn.textContent || '').trim().toLowerCase();
+
+      const match = onclick.match(/openContract\(['"]?(.*?)['"]?\)/);
+
+      if(match){
+        const id = match[1];
+        const b = budgets.find(x => String(x.id) === String(id));
+
+        if(b?.contractCreatedAt){
+          btn.textContent = 'Ver contrato';
+        }else{
+          btn.textContent = 'Criar contrato';
+        }
+      }
+      else if(txt === 'contrato'){
+        btn.textContent = 'Criar contrato';
+      }
+    });
+  }
+
+  const oldOpenContract = window.openContract;
+
+  if(typeof oldOpenContract === 'function'){
+
+    window.openContract = function(id){
+
+      const b = (window.state?.budgets || []).find(x => x.id === id);
+
+      if(b && !b.contractCreatedAt){
+
+        const d = new Date();
+
+        const y = d.getFullYear();
+        const m = String(d.getMonth()+1).padStart(2,'0');
+        const day = String(d.getDate()).padStart(2,'0');
+
+        b.contractCreatedAt = `${y}-${m}-${day}`;
+
+        saveStateSafe();
+      }
+
+      const result = oldOpenContract.apply(this, arguments);
+
+      setTimeout(renameContractButtons, 120);
+
+      return result;
+    };
+  }
+
+  // força atualizar depois de renderizações
+  const oldRenderBudgets = window.renderBudgets;
+
+  if(typeof oldRenderBudgets === 'function'){
+    window.renderBudgets = function(){
+      const r = oldRenderBudgets.apply(this, arguments);
+      setTimeout(renameContractButtons, 120);
+      return r;
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    setTimeout(renameContractButtons, 300);
+  });
+
+  document.addEventListener('click', ()=>{
+    setTimeout(renameContractButtons, 180);
+  }, true);
+
+})();
+</script>
+
 </body></html>
