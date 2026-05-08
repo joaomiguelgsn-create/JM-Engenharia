@@ -4192,142 +4192,6 @@ init();
   try{ if(typeof state !== 'undefined' && state) window.state = state; }catch(e){}
 })();
 </script>
-<script id="jm-final-contratos-e-filtros-v52-disabled" type="text/plain">
-(function(){
-  'use strict';
-  if(window.__JM_FINAL_CONTRATOS_FILTROS_V52__) return;
-  window.__JM_FINAL_CONTRATOS_FILTROS_V52__ = true;
-
-  function ensureState(){ if(!window.state) window.state = {}; if(!Array.isArray(state.budgets)) state.budgets = []; if(!Array.isArray(state.contracts)) state.contracts = []; }
-  function esc(v){ return String(v ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
-  function arg(v){ return String(v ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
-  function todayIso(){ return new Date().toISOString().slice(0,10); }
-  function brDate(v){ if(!v) return ''; const [y,m,d] = String(v).slice(0,10).split('-'); return y && m && d ? `${d}/${m}/${y}` : String(v); }
-  function saveHard(){ try{ ensureState(); localStorage.setItem('jm_v15_online_backup', JSON.stringify(state)); localStorage.setItem('jm_v14_estavel', JSON.stringify(state)); if(typeof queueCloudSave === 'function') queueCloudSave(); }catch(e){ console.error(e); } }
-  function budgetById(id){ ensureState(); return state.budgets.find(b => String(b.id) === String(id)); }
-  function statusOf(b){ const s = b.status || 'Aberto'; if(s === 'Fechado'){ const ps = b.projectStatus || 'Ativo'; if(ps === 'Concluído') return 'Concluído'; if(ps === 'Pausado') return 'Pausado'; if(ps === 'Cancelado') return 'Cancelado'; return 'Fechado'; } if(s === 'Perdido') return 'Perdido'; return 'Aberto'; }
-  function projectNames(b){ const arr = Array.isArray(b?.projetos) ? b.projetos : []; if(arr.some(p => String(p).toLowerCase().includes('combo'))) return ['Projeto Arquitetônico','Projeto Estrutural','Projeto Elétrico','Projeto Hidrossanitário']; return arr.map(p => { const s = String(p || '').replace(/^Projeto\s+/i,'').trim(); return s ? 'Projeto ' + s : ''; }).filter(Boolean); }
-  function projectText(b){ const ps = projectNames(b); return ps.length <= 1 ? (ps[0] || 'Projeto técnico') : ps.slice(0,-1).join(', ') + ' e ' + ps[ps.length-1]; }
-  function contractMatches(b, filter){ if(filter === 'Todos') return true; const raw = (b.projetos || []).join(' ').toLowerCase(); if(filter === 'Combo completo') return raw.includes('combo'); return projectNames(b).some(p => p.toLowerCase().includes(String(filter).toLowerCase())); }
-  function getContractsByBudget(id){ ensureState(); return state.contracts.filter(c => String(c.budgetId) === String(id)).sort((a,b) => String(b.createdAt||'').localeCompare(String(a.createdAt||'')) || String(b.id||'').localeCompare(String(a.id||''))); }
-  function getContract(ref){ ensureState(); return state.contracts.find(c => String(c.id) === String(ref)) || getContractsByBudget(ref)[0] || null; }
-  function getContracts(){ ensureState(); migrateOldContracts(); return state.contracts.map(c => ({contract:c, budget:budgetById(c.budgetId)})).filter(x => x.budget).sort((a,b) => String(b.contract.createdAt||'').localeCompare(String(a.contract.createdAt||'')) || String(b.contract.id||'').localeCompare(String(a.contract.id||''))); }
-  function migrateOldContracts(){ ensureState(); state.budgets.forEach(b => { if(b.contractCreatedAt && !state.contracts.some(c => String(c.budgetId) === String(b.id))){ state.contracts.push({id:'ct_' + b.id + '_' + Date.now().toString(36), budgetId:b.id, createdAt:b.contractCreatedAt}); } }); }
-
-  function ensureContractsSection(){
-    document.querySelectorAll('section#contratos').forEach((el, idx) => { if(idx > 0) el.remove(); });
-    if(!document.getElementById('contratos')){
-      const sec = document.createElement('section'); sec.id = 'contratos'; sec.className = 'section';
-      sec.innerHTML = `<div class="card"><h3>Contratos</h3><div class="contractsToolbar" id="contractFilters"></div><div id="contractsRows"></div></div>`;
-      const main = document.querySelector('.main') || document.querySelector('main') || document.body;
-      const proposta = document.getElementById('proposta');
-      if(proposta && proposta.parentNode) proposta.parentNode.insertBefore(sec, proposta); else main.appendChild(sec);
-    }
-    const nav = document.getElementById('nav') || document.querySelector('.nav');
-    if(nav && !document.getElementById('nav_contratos')){ const btn = document.createElement('button'); btn.id = 'nav_contratos'; btn.textContent = 'Contratos'; btn.onclick = () => go('contratos'); const ref = document.getElementById('nav_clientes') || document.getElementById('nav_projetos'); if(ref && ref.parentNode) ref.parentNode.insertBefore(btn, ref.nextSibling); else nav.appendChild(btn); }
-  }
-
-  function ensureBudgetFilter(){
-    const rows = document.getElementById('budgetRows'); if(!rows) return;
-    if(document.getElementById('budgetStatusFilters')) return;
-    const filter = document.createElement('div'); filter.id = 'budgetStatusFilters'; filter.className = 'budgetStatusFilters';
-    const table = rows.closest('table'); if(table && table.parentNode) table.parentNode.insertBefore(filter, table); else rows.parentNode.insertBefore(filter, rows);
-  }
-
-  window.setBudgetFilterJMFinal = function(f){ ensureState(); state.budgetFilter = f; saveHard(); renderBudgetFiltersJMFinal(); if(typeof window.renderBudgets === 'function') window.renderBudgets(); };
-
-  function renderBudgetFiltersJMFinal(){
-    ensureBudgetFilter(); const el = document.getElementById('budgetStatusFilters'); if(!el) return;
-    const filters = ['Todos','Aberto','Fechado','Concluído','Pausado','Cancelado','Perdido']; const selected = state.budgetFilter || 'Todos';
-    el.innerHTML = filters.map(f => { const count = state.budgets.filter(b => f === 'Todos' || statusOf(b) === f).length; return `<button type="button" class="${selected===f?'active':''}" onclick="setBudgetFilterJMFinal('${f}')">${f} (${count})</button>`; }).join('');
-  }
-
-  const oldBudgetRow = window.budgetRow;
-  function budgetRowFixed(b, archived=false){
-    let c = typeof calcFrom === 'function' ? calcFrom(b) : {final:0};
-    let st = b.status || 'Aberto';
-    let pillTxt = st === 'Fechado' && typeof projectStatusInfo === 'function' ? projectStatusInfo(b).txt : st;
-    let pillCls = st === 'Fechado' && typeof projectStatusInfo === 'function' ? projectStatusInfo(b).cls : (st === 'Perdido' ? 'bad' : 'blue');
-    let acts = st === 'Fechado' ? '<span class="pill ok">Em projetos</span>' : st === 'Perdido' ? '<span class="pill bad">Perdido</span>' : `<button class="btn green" onclick="closeBudget('${arg(b.id)}')">Fechar</button><button class="btn red" onclick="lostBudget('${arg(b.id)}')">Perdido</button>`;
-    const valor = typeof money === 'function' ? money(c.final || 0) : (c.final || 0);
-    return `<tr data-budget-id="${esc(b.id)}" class="${archived?'budgetArchived':''}"><td><b>${esc(b.cliente)}</b><br><span class="muted">${esc(b.telefone||'')} ${b.cidade?'• '+esc(b.cidade):''}</span><br><span class="mini">${esc(b.cpfcnpj||'')} ${b.endereco?'• '+esc(b.endereco):''}</span></td><td>${esc((b.projetos||[]).join(', '))}</td><td><span class="areaNowrap">${esc(b.area||0)}m²</span></td><td>${esc(valor)}</td><td><span class="pill ${pillCls}">${esc(pillTxt)}</span></td><td><div class="btns"><button class="btn" onclick="editBudget('${arg(b.id)}')">Editar</button><button class="btn" onclick="openProposal('${arg(b.id)}')">Proposta</button><button class="btn primary" onclick="createContractJMFinal('${arg(b.id)}')">${getContractsByBudget(b.id).length ? 'Criar novo contrato' : 'Criar contrato'}</button><button class="btn" onclick="showClientHistory('${arg(b.cliente)}')">Histórico</button><button class="btn" onclick="duplicateBudget('${arg(b.id)}')">Duplicar</button>${acts}<button class="btn red" onclick="delBudget('${arg(b.id)}')">Apagar</button></div></td></tr>`;
-  }
-
-  window.budgetRow = budgetRowFixed;
-  try{ budgetRow = window.budgetRow; }catch(e){}
-
-  window.renderBudgets = function(){
-    ensureState(); migrateOldContracts(); renderBudgetFiltersJMFinal();
-    const rows = document.getElementById('budgetRows'); if(!rows) return;
-    const filter = state.budgetFilter || 'Todos';
-    const visible = state.budgets.filter(b => filter === 'Todos' || statusOf(b) === filter);
-    const open = visible.filter(b => (b.status || 'Aberto') === 'Aberto');
-    const archived = visible.filter(b => (b.status || 'Aberto') !== 'Aberto');
-    let html = '';
-    if(open.length) html += `<tr class="budgetGroupRow"><td colspan="6">Orçamentos em aberto — aparecem primeiro</td></tr>` + open.map(b => budgetRowFixed(b,false)).join('');
-    if(archived.length) html += `<tr class="budgetGroupRow"><td colspan="6">Arquivados / fechados / perdidos</td></tr>` + archived.map(b => budgetRowFixed(b,true)).join('');
-    rows.innerHTML = html || `<tr><td colspan="6" class="muted">Nenhum orçamento encontrado para o filtro “${esc(filter)}”.</td></tr>`;
-  };
-  try{ renderBudgets = window.renderBudgets; }catch(e){}
-
-  window.createContractJMFinal = function(id){
-    ensureState(); migrateOldContracts();
-    const b = budgetById(id); if(!b){ if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.'); return; }
-    const existingCount = getContractsByBudget(id).length;
-    if(existingCount){ const ok = confirm('Contrato já existe, deseja criar novo?'); if(!ok){ ensureContractsSection(); renderContractsJMFinal(); if(typeof go === 'function') go('contratos'); return; } }
-    const now = Date.now(); const contract = { id:'ct_' + String(id) + '_' + now.toString(36), budgetId:id, createdAt:todayIso(), createdAtMs:now };
-    state.contracts.push(contract); b.contractCreatedAt = contract.createdAt; b.contractLocked = true;
-    saveHard(); ensureContractsSection(); renderContractsJMFinal(); if(typeof window.renderBudgets === 'function') window.renderBudgets();
-    if(typeof go === 'function') go('contratos');
-    if(typeof toastMsg === 'function') toastMsg(existingCount ? 'Novo contrato criado na aba Contratos.' : 'Contrato criado na aba Contratos.');
-  };
-
-  window.deleteContractJMFinal = function(ref){
-    ensureState(); const c = getContract(ref); if(!c) return;
-    if(!confirm('Deseja excluir este contrato da aba Contratos? O orçamento continuará existindo.')) return;
-    const budgetId = c.budgetId; state.contracts = state.contracts.filter(x => String(x.id) !== String(c.id));
-    const b = budgetById(budgetId); const last = getContractsByBudget(budgetId)[0];
-    if(b){ if(last){ b.contractCreatedAt = last.createdAt; b.contractLocked = true; } else { delete b.contractCreatedAt; delete b.contractLocked; } }
-    saveHard(); renderContractsJMFinal(); if(typeof window.renderBudgets === 'function') window.renderBudgets();
-  };
-
-  window.viewContractJMFinal = function(ref){
-    const c = getContract(ref); const b = c ? budgetById(c.budgetId) : budgetById(ref);
-    if(!b || !c){ if(typeof toastMsg === 'function') toastMsg('Contrato não encontrado.'); return; }
-    const render = window.__jmRealOpenContractDefinitive || window.openContract;
-    if(typeof render === 'function') render(b.id); else if(typeof toastMsg === 'function') toastMsg('Erro ao abrir contrato.');
-    setTimeout(function(){ const root = document.getElementById('proposalPrint'); if(!root) return; const data = brDate(c.createdAt); root.innerHTML = root.innerHTML.replace(/Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g, `Luís Eduardo Magalhães/BA, ${data}.`); },120);
-  };
-
-  window.renderContractsJMFinal = function(){
-    ensureState(); migrateOldContracts(); ensureContractsSection();
-    const wrap = document.getElementById('contractsRows'); const filters = document.getElementById('contractFilters'); if(!wrap || !filters) return;
-    const selected = state.contractFilter || 'Todos'; const options = ['Todos','Arquitetônico','Estrutural','Elétrico','Hidrossanitário','Combo completo'];
-    filters.innerHTML = options.map(o => `<button type="button" class="${selected===o?'active':''}" onclick="state.contractFilter='${arg(o)}';localStorage.setItem('jm_v15_online_backup', JSON.stringify(state));renderContractsJMFinal()">${o}</button>`).join('');
-    const list = getContracts().filter(x => contractMatches(x.budget, selected));
-    if(!list.length){ wrap.innerHTML = `<div class="emptyState">Nenhum contrato criado nesta categoria.</div>`; return; }
-    wrap.innerHTML = `<div class="contractsGrid">` + list.map(({contract,budget:b}) => {
-      const c = typeof calcFrom === 'function' ? calcFrom(b) : {final:0}; const valor = typeof money === 'function' ? money(c.final || 0) : (c.final || '');
-      const sameBudget = getContractsByBudget(b.id); const version = sameBudget.slice().reverse().findIndex(x => String(x.id) === String(contract.id)) + 1;
-      return `<div class="contractCard"><div class="contractCardTop"><div><h4>${esc(b.cliente || 'Cliente')}</h4><p class="muted" style="margin:0">${esc(projectText(b))}</p></div><span class="pill ok">Contrato ${version || ''}</span></div><div class="contractMeta"><span>Data: ${esc(brDate(contract.createdAt))}</span><span>${esc(valor)}</span><span>${esc(b.cidade || 'Cidade não informada')}</span></div><div class="btns"><button class="btn primary" onclick="viewContractJMFinal('${arg(contract.id)}')">Abrir contrato</button><button class="btn" onclick="openProposal('${arg(b.id)}')">Ver proposta</button><button class="btn red" onclick="deleteContractJMFinal('${arg(contract.id)}')">Excluir contrato</button></div></div>`;
-    }).join('') + `</div>`;
-  };
-
-  const style = document.createElement('style');
-  style.textContent = `.budgetStatusFilters,.contractsToolbar{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 18px}.budgetStatusFilters button,.contractsToolbar button{border:1px solid var(--line);background:#16263b;color:#dbeafe;border-radius:999px;padding:10px 14px;font-weight:800;cursor:pointer}.budgetStatusFilters button.active,.contractsToolbar button.active{background:linear-gradient(135deg,var(--gold),#f8d982);color:#101827;border-color:var(--gold)}.contractsGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.contractCard{border:1px solid var(--line);background:rgba(15,27,45,.58);border-radius:18px;padding:16px}.contractCardTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.contractCard h4{margin:0 0 6px}.contractMeta{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.contractMeta span{border:1px solid var(--line);border-radius:999px;padding:7px 10px;font-size:12px;color:var(--mut)}`;
-  document.head.appendChild(style);
-
-  const oldGo = window.go;
-  if(typeof oldGo === 'function' && !window.__JM_GO_FINAL_V52__){
-    window.__JM_GO_FINAL_V52__ = true;
-    window.go = function(p){ ensureContractsSection(); const r = oldGo.apply(this, arguments); if(p === 'clientes') setTimeout(() => { renderBudgetFiltersJMFinal(); if(typeof window.renderBudgets === 'function') window.renderBudgets(); },40); if(p === 'contratos') setTimeout(() => { try{ if(window.pageTitle) pageTitle.textContent = 'Contratos'; if(window.pageSub) pageSub.textContent = 'Contratos criados e organizados por projeto.'; }catch(e){} renderContractsJMFinal(); },40); return r; };
-    try{ go = window.go; }catch(e){}
-  }
-
-  function boot(){ ensureState(); migrateOldContracts(); ensureContractsSection(); renderBudgetFiltersJMFinal(); if(document.getElementById('budgetRows') && typeof window.renderBudgets === 'function') window.renderBudgets(); renderContractsJMFinal(); }
-  document.addEventListener('DOMContentLoaded', () => setTimeout(boot,180)); setTimeout(boot,450);
-})();
-</script>
 <script id="jm-final-contadores-certos-v54-disabled" type="text/plain">
 (function(){
   'use strict';
@@ -4502,16 +4366,29 @@ init();
 })();
 </script>
 
-<script id="jm-patch-exclusao-contratos-final">
+<script id="jm-patch-contratos-fantasma-final">
 (function(){
   'use strict';
-  if(window.__JM_PATCH_EXCLUSAO_CONTRATOS_FINAL__) return;
-  window.__JM_PATCH_EXCLUSAO_CONTRATOS_FINAL__ = true;
+  if(window.__JM_PATCH_CONTRATOS_FANTASMA_FINAL__) return;
+  window.__JM_PATCH_CONTRATOS_FANTASMA_FINAL__ = true;
 
   function ensureState(){
     if(!window.state) window.state = {};
     if(!Array.isArray(window.state.budgets)) window.state.budgets = [];
     if(!Array.isArray(window.state.contracts)) window.state.contracts = [];
+  }
+
+  function saveSafe(){
+    ensureState();
+    try{
+      localStorage.setItem('jm_v15_online_backup', JSON.stringify(window.state));
+      localStorage.setItem('jm_v14_estavel', JSON.stringify(window.state));
+      localStorage.setItem('jm_state', JSON.stringify(window.state));
+      if(typeof window.saveHardJMDefinitive === 'function') window.saveHardJMDefinitive();
+      if(typeof window.queueCloudSave === 'function') window.queueCloudSave();
+    }catch(e){
+      console.error('Erro ao salvar:', e);
+    }
   }
 
   function esc(v){
@@ -4524,16 +4401,36 @@ init();
     return String(v ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   }
 
-  function saveSafe(){
-    try{
-      ensureState();
-      if(typeof window.saveHardJMDefinitive === 'function') return window.saveHardJMDefinitive();
-      localStorage.setItem('jm_v15_online_backup', JSON.stringify(window.state));
-      localStorage.setItem('jm_v14_estavel', JSON.stringify(window.state));
-      if(typeof window.queueCloudSave === 'function') window.queueCloudSave();
-    }catch(e){
-      console.error('Erro ao salvar contratos:', e);
-    }
+  function todayBR(v){
+    if(typeof window.brDate === 'function') return window.brDate(v);
+    if(!v) return '';
+    var s = String(v).slice(0,10);
+    var p = s.split('-');
+    return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : s;
+  }
+
+  function moneySafe(v){
+    if(typeof window.money === 'function') return window.money(v || 0);
+    return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function calcSafe(b){
+    if(typeof window.calcFrom === 'function') return window.calcFrom(b);
+    return {final:Number(b && (b.valor || b.total || b.preco || 0)) || 0};
+  }
+
+  function projectSafe(b){
+    if(typeof window.projectText === 'function') return window.projectText(b);
+    var arr = Array.isArray(b && b.projetos) ? b.projetos : [];
+    return arr.length ? arr.join(', ') : (b && b.tipo) || 'Projeto técnico';
+  }
+
+  function matchesContractFilter(b, filter){
+    if(!filter || filter === 'Todos') return true;
+    if(typeof window.contractMatches === 'function') return window.contractMatches(b, filter);
+    var txt = projectSafe(b).toLowerCase();
+    if(filter === 'Combo completo') return txt.includes('combo');
+    return txt.includes(String(filter).toLowerCase());
   }
 
   function budgetById(id){
@@ -4541,70 +4438,100 @@ init();
     return window.state.budgets.find(function(b){ return String(b.id) === String(id); });
   }
 
-  function contractsByRef(ref){
+  function hasOldContractFlag(b){
+    if(!b) return false;
+    return !!(b.contractCreatedAt || b.contractLocked || b.contractId || b.contratoCriado || b.contratoData || b.contractDate);
+  }
+
+  function contractDateFromBudget(b){
+    return b.contractCreatedAt || b.contractDate || b.contratoData || b.updatedAt || b.createdAt || new Date().toISOString();
+  }
+
+  function explicitContractsForBudget(budgetId){
     ensureState();
-    var s = String(ref);
     return window.state.contracts.filter(function(c){
-      return String(c.id) === s || String(c.budgetId) === s;
+      return String(c.budgetId) === String(budgetId);
     });
   }
 
-  function brDate(v){
-    if(typeof window.brDate === 'function') return window.brDate(v);
-    if(!v) return '';
-    var p = String(v).slice(0,10).split('-');
-    return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : String(v);
-  }
-
-  function fallbackProjectText(b){
-    if(typeof window.projectText === 'function') return window.projectText(b);
-    var arr = Array.isArray(b && b.projetos) ? b.projetos : [];
-    return arr.length ? arr.join(', ') : 'Projeto técnico';
-  }
-
-  function fallbackContractMatches(b, filter){
-    if(typeof window.contractMatches === 'function') return window.contractMatches(b, filter);
-    if(filter === 'Todos') return true;
-    var txt = ((b && b.projetos) || []).join(' ').toLowerCase();
-    if(filter === 'Combo completo') return txt.includes('combo');
-    return txt.includes(String(filter).toLowerCase());
-  }
-
-  window.deleteContractJMFinal = function(ref){
+  // Lista unificada: contratos novos + contratos antigos/fantasma marcados no orçamento.
+  function getUnifiedContracts(){
     ensureState();
+    var items = [];
+    var seenBudgetExplicit = new Set();
 
-    var found = contractsByRef(ref);
-    if(!found.length){
+    window.state.contracts.forEach(function(c, idx){
+      var b = budgetById(c.budgetId);
+      if(!b) return;
+      seenBudgetExplicit.add(String(c.budgetId));
+      items.push({
+        kind:'new',
+        id: c.id || ('contract_' + idx + '_' + c.budgetId),
+        contract:c,
+        budget:b,
+        budgetId:String(c.budgetId),
+        createdAt:c.createdAt || contractDateFromBudget(b)
+      });
+    });
+
+    window.state.budgets.forEach(function(b){
+      if(!b || !b.id) return;
+      var bid = String(b.id);
+      if(seenBudgetExplicit.has(bid)) return;
+      if(!hasOldContractFlag(b)) return;
+      items.push({
+        kind:'old',
+        id:'old_' + bid,
+        contract:null,
+        budget:b,
+        budgetId:bid,
+        createdAt:contractDateFromBudget(b)
+      });
+    });
+
+    return items;
+  }
+
+  // Esta é a correção principal: apaga contrato novo OU contrato fantasma antigo.
+  window.deleteContractJMFinal = window.deleteContractJMFinalHard = function(ref){
+    ensureState();
+    var s = String(ref);
+
+    var target = getUnifiedContracts().find(function(item){
+      return String(item.id) === s ||
+             String(item.budgetId) === s ||
+             (item.contract && String(item.contract.id) === s);
+    });
+
+    if(!target){
       if(typeof window.toastMsg === 'function') window.toastMsg('Contrato não encontrado ou já excluído.');
       else alert('Contrato não encontrado ou já excluído.');
       return;
     }
 
-    var ok = confirm(found.length > 1
-      ? 'Foram encontrados ' + found.length + ' contratos deste orçamento. Deseja excluir todos? O orçamento continuará existindo.'
-      : 'Deseja excluir este contrato da aba Contratos? O orçamento continuará existindo.'
-    );
-    if(!ok) return;
+    var clientName = target.budget && target.budget.cliente ? target.budget.cliente : 'este cliente';
+    if(!confirm('Excluir o contrato de ' + clientName + '? O orçamento continuará salvo.')) return;
 
-    var idsToRemove = new Set(found.map(function(c){ return String(c.id); }));
-    var affectedBudgetIds = new Set(found.map(function(c){ return String(c.budgetId); }));
+    var bid = String(target.budgetId);
 
+    // Remove contratos da lista nova ligados a esse orçamento OU ao id clicado
     window.state.contracts = window.state.contracts.filter(function(c){
-      return !idsToRemove.has(String(c.id));
+      return String(c.budgetId) !== bid && String(c.id) !== s;
     });
 
-    affectedBudgetIds.forEach(function(budgetId){
-      var stillHasContract = window.state.contracts.some(function(c){
-        return String(c.budgetId) === String(budgetId);
-      });
-      if(!stillHasContract){
-        var b = budgetById(budgetId);
-        if(b){
-          delete b.contractCreatedAt;
-          delete b.contractLocked;
-        }
-      }
-    });
+    // Remove todas as marcações antigas que fazem o contrato fantasma reaparecer
+    var b = budgetById(bid);
+    if(b){
+      delete b.contractCreatedAt;
+      delete b.contractLocked;
+      delete b.contractId;
+      delete b.contractDate;
+      delete b.contratoCriado;
+      delete b.contratoData;
+      delete b.contratoId;
+      delete b.hasContract;
+      delete b.contractNumber;
+    }
 
     saveSafe();
 
@@ -4615,64 +4542,70 @@ init();
     if(typeof window.toastMsg === 'function') window.toastMsg('Contrato excluído.');
   };
 
+  // Render novo e compatível, garantindo que o botão dos antigos chame o budgetId.
   window.renderContractsJMFinal = function(){
     ensureState();
-    if(typeof window.ensureContractsArray === 'function') window.ensureContractsArray();
-    if(typeof window.ensureContractsSection === 'function') window.ensureContractsSection();
-
-    var wrap = document.getElementById('contractsRows');
     var filters = document.getElementById('contractFilters');
-    if(!wrap || !filters) return;
+    var wrap = document.getElementById('contractsRows');
+    if(!filters || !wrap) return;
 
-    var selected = (window.state && window.state.contractFilter) || 'Todos';
+    var selected = window.state.contractFilter || 'Todos';
     var options = ['Todos','Arquitetônico','Estrutural','Elétrico','Hidrossanitário','Combo completo'];
 
     filters.innerHTML = options.map(function(o){
-      return '<button class="' + (selected===o?'active':'') + '" onclick="state.contractFilter=\'' + arg(o) + '\';saveHardJMDefinitive();renderContractsJMFinal()">' + esc(o) + '</button>';
+      return '<button class="' + (selected === o ? 'active' : '') + '" onclick="state.contractFilter=\'' + arg(o) + '\';saveSafeContratoPatch();renderContractsJMFinal()">' + esc(o) + '</button>';
     }).join('');
 
-    var list = window.state.contracts
-      .map(function(c){ return {contract:c, budget:budgetById(c.budgetId)}; })
-      .filter(function(x){ return x.budget && fallbackContractMatches(x.budget, selected); })
-      .sort(function(a,b){
-        return String(b.contract.createdAt || '').localeCompare(String(a.contract.createdAt || '')) ||
-               String(b.contract.id || '').localeCompare(String(a.contract.id || ''));
-      });
+    var list = getUnifiedContracts()
+      .filter(function(item){ return matchesContractFilter(item.budget, selected); })
+      .sort(function(a,b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
 
     if(!list.length){
       wrap.innerHTML = '<div class="emptyState">Nenhum contrato criado nesta categoria.</div>';
       return;
     }
 
-    wrap.innerHTML = '<div class="contractsGrid">' + list.map(function(item){
-      var c = item.contract;
+    wrap.innerHTML = '<div class="contractsGrid">' + list.map(function(item, idx){
       var b = item.budget;
-      var calc = typeof window.calcFrom === 'function' ? window.calcFrom(b) : {final:0};
-      var valor = typeof window.money === 'function' ? window.money(calc.final || 0) : String(calc.final || '');
-      var data = brDate(c.createdAt);
+      var calc = calcSafe(b);
+      var valor = moneySafe(calc.final || 0);
+      var data = todayBR(item.createdAt);
+      var btnRef = item.kind === 'old' ? item.budgetId : item.id;
 
       return '<div class="contractCard">' +
         '<div class="contractCardTop">' +
-          '<div><h4>' + esc(b.cliente || 'Cliente') + '</h4><p class="muted" style="margin:0">' + esc(fallbackProjectText(b)) + '</p></div>' +
-          '<span class="pill ok">Criado</span>' +
+          '<div><h4>' + esc(b.cliente || 'Cliente') + '</h4><p class="muted" style="margin:0">' + esc(projectSafe(b)) + '</p></div>' +
+          '<span class="pill ok">Contrato ' + (idx + 1) + '</span>' +
         '</div>' +
         '<div class="contractMeta">' +
-          '<span>' + esc(data || 'Sem data') + '</span>' +
+          '<span>Data: ' + esc(data || 'Sem data') + '</span>' +
           '<span>' + esc(valor) + '</span>' +
           '<span>' + esc(b.cidade || 'Cidade não informada') + '</span>' +
         '</div>' +
         '<div class="btns">' +
           '<button class="btn primary" onclick="viewContractJMFinal(\'' + arg(b.id) + '\')">Abrir contrato</button>' +
           '<button class="btn" onclick="openProposal(\'' + arg(b.id) + '\')">Ver proposta</button>' +
-          '<button class="btn red" onclick="deleteContractJMFinal(\'' + arg(c.id) + '\')">Excluir contrato</button>' +
+          '<button class="btn red" onclick="deleteContractJMFinalHard(\'' + arg(btnRef) + '\')">Excluir contrato</button>' +
         '</div>' +
       '</div>';
     }).join('') + '</div>';
   };
 
-  setTimeout(function(){
-    if(typeof window.renderContractsJMFinal === 'function') window.renderContractsJMFinal();
-  }, 250);
+  window.saveSafeContratoPatch = saveSafe;
+
+  // Re-render depois que os scripts originais terminarem.
+  function boot(){
+    try{
+      if(typeof window.renderContractsJMFinal === 'function') window.renderContractsJMFinal();
+    }catch(e){
+      console.error('Erro no patch de contratos:', e);
+    }
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(boot, 300); });
+  }else{
+    setTimeout(boot, 300);
+  }
 })();
 </script>
 
