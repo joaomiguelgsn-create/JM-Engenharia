@@ -4151,7 +4151,7 @@ init();
 </script>
 
 
-<!-- ===== PATCH FINAL CONTRATO JM DEFINITIVO v2 ===== -->
+<!-- ===== JM CONTRATO BOTAO FINAL — correção direta e isolada ===== -->
 <script>
 (function(){
   function todayIsoJM(){
@@ -4159,25 +4159,25 @@ init();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
-  function brFromIsoJM(iso){
-    const p = String(iso || '').split('-');
-    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : new Date().toLocaleDateString('pt-BR');
-  }
-
-  function getBudgetJM(id){
-    return (window.state && Array.isArray(state.budgets) ? state.budgets : []).find(b => String(b.id) === String(id));
-  }
-
   function saveJM(){
     try{
       if(typeof save === 'function') save();
-      else localStorage.setItem('jm_v15_online_backup', JSON.stringify(window.state || {}));
-    }catch(e){ console.error(e); }
+      else if(window.state) localStorage.setItem('jmNetoEngenhariaState', JSON.stringify(window.state));
+    }catch(e){
+      console.error('Erro ao salvar contrato:', e);
+    }
   }
 
-  // Guarda a função que realmente desenha o contrato, depois de todos os scripts do arquivo terem carregado.
-  if(typeof window.openContract === 'function'){
-    window.openContractOriginalJM = window.openContract;
+  function getBudgetJM(id){
+    return (window.state && Array.isArray(window.state.budgets))
+      ? window.state.budgets.find(b => String(b.id) === String(id))
+      : null;
+  }
+
+  // Neste ponto do arquivo, openContract já é a função que realmente monta/mostra o contrato.
+  // Guardamos ela e depois substituímos openContract pelo fluxo Criar/Ver.
+  if(typeof window.openContract === 'function' && !window.__jmRenderContractFinal){
+    window.__jmRenderContractFinal = window.openContract;
   }
 
   window.createContractJM = function(id){
@@ -4191,9 +4191,12 @@ init();
     if(!b.contractCreatedAt){
       b.contractCreatedAt = todayIsoJM();
       b.contractLocked = true;
+      saveJM();
     }
 
-    saveJM();
+    if(typeof renderBudgets === 'function'){
+      renderBudgets();
+    }
 
     if(typeof toastMsg === 'function') toastMsg('Contrato criado. Agora clique em “Ver contrato”.');
     else alert('Contrato criado. Agora clique em “Ver contrato”.');
@@ -4208,87 +4211,102 @@ init();
     }
 
     if(!b.contractCreatedAt){
-      if(typeof toastMsg === 'function') toastMsg('Clique primeiro em “Criar contrato”.');
-      else alert('Clique primeiro em “Criar contrato”.');
+      if(typeof toastMsg === 'function') toastMsg('Crie o contrato primeiro.');
+      else alert('Crie o contrato primeiro.');
       return;
     }
 
-    if(typeof window.openContractOriginalJM === 'function'){
-      window.openContractOriginalJM(id);
+    if(typeof window.__jmRenderContractFinal === 'function'){
+      window.__jmRenderContractFinal(id);
     }else{
       if(typeof toastMsg === 'function') toastMsg('Erro ao abrir contrato.');
       else alert('Erro ao abrir contrato.');
-      return;
     }
-
-    setTimeout(function(){
-      const root = document.getElementById('proposalPrint');
-      if(!root) return;
-      const data = brFromIsoJM(b.contractCreatedAt);
-      root.innerHTML = root.innerHTML.replace(
-        /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
-        `Luís Eduardo Magalhães/BA, ${data}.`
-      );
-    }, 80);
   };
 
-  // openContract vira uma rota segura: se não existe, cria; se existe, abre.
+  // Mantém compatibilidade: qualquer chamada antiga para openContract segue o fluxo correto.
   window.openContract = function(id){
     const b = getBudgetJM(id);
     if(b && b.contractCreatedAt) return window.viewContractJM(id);
     return window.createContractJM(id);
   };
 
-  // Esta é a correção principal: a linha do orçamento já nasce com o botão correto.
-  window.budgetRow = function(b, archived=false){
-    const c = calcFrom(b);
+  function escArgJM(value){
+    return String(value ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  }
+
+  function makeBudgetRowJM(b, archived=false){
+    const c = typeof calcFrom === 'function' ? calcFrom(b) : {final:0, ps:b.projetos || []};
     const st = b.status || 'Aberto';
 
-    const acts = st === 'Fechado'
-      ? '<span class="pill ok">Em projetos</span>'
-      : st === 'Perdido'
-        ? '<span class="pill bad">Perdido</span>'
-        : `<button class="btn green" onclick="closeBudget('${b.id}')">Fechar</button><button class="btn red" onclick="lostBudget('${b.id}')">Perdido</button>`;
-
     const statusClass = st === 'Fechado'
-      ? projectStatusInfo(b).cls
+      ? (typeof projectStatusInfo === 'function' ? projectStatusInfo(b).cls : 'ok')
       : st === 'Perdido'
         ? 'bad'
         : 'blue';
 
     const statusText = st === 'Fechado'
-      ? projectStatusInfo(b).txt
+      ? (typeof projectStatusInfo === 'function' ? projectStatusInfo(b).txt : 'Fechado')
       : st;
 
-    const contractButton = b.contractCreatedAt
-      ? `<button class="btn primary" onclick="viewContractJM('${b.id}')">Ver contrato</button>`
-      : `<button class="btn primary" onclick="createContractJM('${b.id}')">Criar contrato</button>`;
+    const acts = st === 'Fechado'
+      ? '<span class="pill ok">Em projetos</span>'
+      : st === 'Perdido'
+        ? '<span class="pill bad">Perdido</span>'
+        : `<button class="btn green" onclick="closeBudget('${escArgJM(b.id)}')">Fechar</button><button class="btn red" onclick="lostBudget('${escArgJM(b.id)}')">Perdido</button>`;
 
-    const projetos = (b.projetos || []).join(', ');
-    const clienteSafe = typeof safeArg === 'function' ? safeArg(b.cliente || '') : String(b.cliente || '').replace(/'/g, "\\'");
+    const contractButton = b.contractCreatedAt
+      ? `<button class="btn primary" onclick="viewContractJM('${escArgJM(b.id)}')">Ver contrato</button>`
+      : `<button class="btn primary" onclick="createContractJM('${escArgJM(b.id)}')">Criar contrato</button>`;
+
+    const projetos = Array.isArray(b.projetos) ? b.projetos.join(', ') : '';
+    const valor = typeof money === 'function' ? money(c.final || 0) : (c.final || 0);
+    const clienteSafe = typeof safeArg === 'function' ? safeArg(b.cliente) : escArgJM(b.cliente);
 
     return `<tr class="${archived?'budgetArchived':''}">
       <td><b>${b.cliente || ''}</b><br><span class="muted">${b.telefone || ''} ${b.cidade ? '• '+b.cidade : ''}</span><br><span class="mini">${b.endereco || ''}</span></td>
       <td>${projetos}</td>
       <td><span class="areaNowrap">${b.area || 0}m²</span></td>
-      <td>${money(c.final)}<br><span class="mini">${b.paymentMethod || 'À vista'}</span></td>
+      <td>${valor}</td>
       <td><span class="pill ${statusClass}">${statusText}</span></td>
       <td><div class="btns">
-        <button class="btn" onclick="editBudget('${b.id}')">Editar</button>
-        <button class="btn" onclick="openProposal('${b.id}')">Proposta</button>
+        <button class="btn" onclick="editBudget('${escArgJM(b.id)}')">Editar</button>
+        <button class="btn" onclick="openProposal('${escArgJM(b.id)}')">Proposta</button>
         ${contractButton}
         <button class="btn" onclick="showClientHistory('${clienteSafe}')">Histórico</button>
-        <button class="btn" onclick="duplicateBudget('${b.id}')">Duplicar</button>
+        <button class="btn" onclick="duplicateBudget('${escArgJM(b.id)}')">Duplicar</button>
         ${acts}
-        <button class="btn red" onclick="delBudget('${b.id}')">Apagar</button>
+        <button class="btn red" onclick="delBudget('${escArgJM(b.id)}')">Apagar</button>
       </div></td>
     </tr>`;
-  };
+  }
 
-  // Força redesenhar a tabela usando a budgetRow corrigida.
+  // Esta é a parte importante: a função final que o renderBudgets usa.
+  window.budgetRow = makeBudgetRowJM;
+  budgetRow = makeBudgetRowJM;
+
+  // Envolve renderBudgets apenas para garantir que a função final continue sendo usada.
+  if(typeof window.renderBudgets === 'function' && !window.__jmRenderBudgetFinalWrapped){
+    window.__jmRenderBudgetFinalWrapped = true;
+    const oldRenderBudgetsJM = window.renderBudgets;
+    window.renderBudgets = function(){
+      window.budgetRow = makeBudgetRowJM;
+      budgetRow = makeBudgetRowJM;
+      return oldRenderBudgetsJM.apply(this, arguments);
+    };
+    renderBudgets = window.renderBudgets;
+  }
+
+  // Re-renderiza a tela atual com o botão correto.
   setTimeout(function(){
-    if(typeof renderBudgets === 'function') renderBudgets();
-  }, 100);
+    try{
+      window.budgetRow = makeBudgetRowJM;
+      budgetRow = makeBudgetRowJM;
+      if(typeof renderBudgets === 'function') renderBudgets();
+    }catch(e){
+      console.error('Erro ao atualizar botões de contrato:', e);
+    }
+  }, 150);
 })();
 </script>
 
