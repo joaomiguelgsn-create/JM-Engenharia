@@ -4151,8 +4151,8 @@ init();
 </script>
 
 
-<!-- ===== JM CONTRATOS FINAL SEM DUPLICAR ===== -->
-<style id="jm-contracts-final-style">
+<!-- ===== JM CONTRATOS DEFINITIVO — lista própria state.contracts ===== -->
+<style id="jm-contracts-definitive-style">
 .budgetStatusFilters,.contractsToolbar{
   display:flex;
   gap:8px;
@@ -4210,10 +4210,10 @@ init();
 @media(max-width:900px){.contractsGrid{grid-template-columns:1fr}}
 </style>
 
-<script id="jm-contracts-final-script">
+<script id="jm-contracts-definitive-script">
 (function(){
-  let normalizing = false;
-  let observerReady = false;
+  let busy = false;
+  let mutationReady = false;
 
   function todayIso(){
     const d = new Date();
@@ -4233,27 +4233,45 @@ init();
     return String(v ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   }
 
-  function saveSafe(){
+  function ensureContractsArray(){
+    if(!window.state) window.state = {};
+    if(!Array.isArray(window.state.contracts)) window.state.contracts = [];
+
+    // Migração: se algum orçamento já tinha contractCreatedAt, joga pra lista própria.
+    (window.state.budgets || []).forEach(b => {
+      if(b.contractCreatedAt && !window.state.contracts.some(c => String(c.budgetId) === String(b.id))){
+        window.state.contracts.push({
+          id: 'ct_' + b.id,
+          budgetId: b.id,
+          createdAt: b.contractCreatedAt
+        });
+      }
+    });
+  }
+
+  function saveHard(){
     try{
-      if(typeof save === 'function') save();
-      else localStorage.setItem('jm_v15_online_backup', JSON.stringify(window.state || {}));
+      ensureContractsArray();
+      localStorage.setItem('jm_v15_online_backup', JSON.stringify(window.state));
+      localStorage.setItem('jm_v14_estavel', JSON.stringify(window.state));
+      if(typeof queueCloudSave === 'function') queueCloudSave();
     }catch(e){console.error(e)}
   }
 
   function budgetById(id){
-    return (window.state && Array.isArray(window.state.budgets))
-      ? window.state.budgets.find(b => String(b.id) === String(id))
-      : null;
+    return (window.state?.budgets || []).find(b => String(b.id) === String(id));
   }
 
-  function parseIdFromRow(row){
-    const btns = row.querySelectorAll('button,[onclick]');
-    for(const el of btns){
-      const oc = el.getAttribute('onclick') || '';
-      const m = oc.match(/(?:editBudget|openProposal|showClientHistory|duplicateBudget|closeBudget|lostBudget|delBudget|openContract|createContractJM|createContractAndGoJM|viewContract)[^\(]*\(['"]?([^'")]+)['"]?\)/);
-      if(m && budgetById(m[1])) return m[1];
-    }
-    return null;
+  function contractByBudgetId(id){
+    ensureContractsArray();
+    return window.state.contracts.find(c => String(c.budgetId) === String(id));
+  }
+
+  function getContracts(){
+    ensureContractsArray();
+    return window.state.contracts
+      .map(c => ({contract:c, budget:budgetById(c.budgetId)}))
+      .filter(x => x.budget);
   }
 
   function statusOf(b){
@@ -4293,11 +4311,27 @@ init();
     return projectNames(b).some(p => p.toLowerCase().includes(filter.toLowerCase()));
   }
 
-  if(typeof window.openContract === 'function' && !window.__jmOpenContractRealFinal){
-    window.__jmOpenContractRealFinal = window.openContract;
+  function parseIdFromRow(row){
+    const els = row.querySelectorAll('[onclick]');
+    for(const el of els){
+      const oc = el.getAttribute('onclick') || '';
+      const m = oc.match(/(?:editBudget|openProposal|showClientHistory|duplicateBudget|closeBudget|lostBudget|delBudget|openContract|createContractJMFinal)[^\(]*\(['"]?([^'")]+)['"]?\)/);
+      if(m && budgetById(m[1])) return m[1];
+    }
+    return row.dataset.budgetId || null;
+  }
+
+  // Guarda função real que gera o contrato visual
+  if(typeof window.openContract === 'function' && !window.__jmRealOpenContractDefinitive){
+    window.__jmRealOpenContractDefinitive = window.openContract;
   }
 
   function ensureContractsSection(){
+    // remove seções duplicadas antigas de contratos
+    document.querySelectorAll('section#contratos').forEach((el, idx) => {
+      if(idx > 0) el.remove();
+    });
+
     if(!document.getElementById('contratos')){
       const sec = document.createElement('section');
       sec.id = 'contratos';
@@ -4317,7 +4351,7 @@ init();
       if(typeof pages !== 'undefined' && Array.isArray(pages) && !pages.some(p => p[0] === 'contratos')){
         const idx = pages.findIndex(p => p[0] === 'clientes');
         const item = ['contratos','Contratos','Contratos criados e organizados por projeto.'];
-        if(idx >= 0) pages.splice(idx+1,0,item);
+        if(idx >= 0) pages.splice(idx + 1, 0, item);
         else pages.push(item);
       }
     }catch(e){}
@@ -4344,13 +4378,14 @@ init();
     filter.id = 'budgetStatusFilters';
     filter.className = 'budgetStatusFilters';
 
-    const target = card.querySelector('table') || rows;
-    target.parentNode.insertBefore(filter, target);
+    const table = rows.closest('table');
+    if(table && table.parentNode) table.parentNode.insertBefore(filter, table);
+    else card.insertBefore(filter, card.firstChild);
   }
 
   window.setBudgetFilterJMFinal = function(f){
     window.state.budgetFilter = f;
-    try{ if(typeof save === 'function') save(); }catch(e){}
+    saveHard();
     renderBudgetFilters();
     normalizeBudgetTable();
   };
@@ -4370,10 +4405,11 @@ init();
   }
 
   function normalizeBudgetTable(){
-    if(normalizing) return;
-    normalizing = true;
+    if(busy) return;
+    busy = true;
 
     try{
+      ensureContractsArray();
       renderBudgetFilters();
 
       const tbody = document.getElementById('budgetRows');
@@ -4389,14 +4425,12 @@ init();
         if(!b) return;
 
         row.dataset.budgetId = id;
-
-        const visible = selected === 'Todos' || statusOf(b) === selected;
-        row.style.display = visible ? '' : 'none';
+        row.style.display = (selected === 'Todos' || statusOf(b) === selected) ? '' : 'none';
 
         const actions = row.querySelector('.btns') || row.querySelector('td:last-child');
         if(!actions) return;
 
-        // remove QUALQUER botão de contrato existente, inclusive duplicado.
+        // remove todos os botões de contrato anteriores, sem dó
         [...actions.querySelectorAll('button,.btn,a')].forEach(btn => {
           const text = (btn.textContent || '').toLowerCase();
           const oc = (btn.getAttribute('onclick') || '').toLowerCase();
@@ -4405,19 +4439,18 @@ init();
           }
         });
 
-        const proposalBtn = [...actions.querySelectorAll('button,.btn,a')].find(btn => (btn.textContent || '').trim().toLowerCase() === 'proposta');
+        const exists = !!contractByBudgetId(id);
+        const btn = document.createElement('button');
+        btn.className = 'btn primary';
+        btn.type = 'button';
+        btn.textContent = exists ? 'Criar novo contrato' : 'Criar contrato';
+        btn.setAttribute('onclick', `createContractJMFinal('${arg(id)}')`);
 
-        const contractBtn = document.createElement('button');
-        contractBtn.className = 'btn primary';
-        contractBtn.type = 'button';
-        contractBtn.textContent = b.contractCreatedAt ? 'Criar novo contrato' : 'Criar contrato';
-        contractBtn.setAttribute('onclick', `createContractJMFinal('${arg(id)}')`);
-
-        if(proposalBtn) proposalBtn.insertAdjacentElement('afterend', contractBtn);
-        else actions.insertBefore(contractBtn, actions.firstChild);
+        const proposalBtn = [...actions.querySelectorAll('button,.btn,a')].find(x => (x.textContent || '').trim().toLowerCase() === 'proposta');
+        if(proposalBtn) proposalBtn.insertAdjacentElement('afterend', btn);
+        else actions.insertBefore(btn, actions.firstChild);
       });
 
-      // Esconde cabeçalhos vazios do grupo.
       const rows = [...tbody.querySelectorAll('tr')];
       rows.forEach((row, idx) => {
         if(!row.classList.contains('budgetGroupRow')) return;
@@ -4430,18 +4463,22 @@ init();
       });
 
     }finally{
-      normalizing = false;
+      busy = false;
     }
   }
 
   window.createContractJMFinal = function(id){
+    ensureContractsArray();
+
     const b = budgetById(id);
     if(!b){
       if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
       return;
     }
 
-    if(b.contractCreatedAt){
+    const existing = contractByBudgetId(id);
+
+    if(existing){
       const ok = confirm('Já existe contrato para este orçamento. Deseja criar um novo? Isso atualizará a data do contrato existente.');
       if(!ok){
         ensureContractsSection();
@@ -4449,51 +4486,69 @@ init();
         if(typeof go === 'function') go('contratos');
         return;
       }
+      existing.createdAt = todayIso();
+      existing.updatedAt = todayIso();
+    }else{
+      window.state.contracts.push({
+        id: 'ct_' + id + '_' + Date.now().toString(36),
+        budgetId: id,
+        createdAt: todayIso()
+      });
     }
 
-    b.contractCreatedAt = todayIso();
+    // mantém compatibilidade com os contratos antigos também
+    b.contractCreatedAt = contractByBudgetId(id).createdAt;
     b.contractLocked = true;
-    saveSafe();
+
+    saveHard();
 
     ensureContractsSection();
     renderContractsJMFinal();
+    normalizeBudgetTable();
 
     if(typeof go === 'function') go('contratos');
     setTimeout(function(){
-      normalizeBudgetTable();
       renderContractsJMFinal();
+      normalizeBudgetTable();
     },120);
 
     if(typeof toastMsg === 'function') toastMsg('Contrato criado na aba Contratos.');
   };
 
   window.deleteContractJMFinal = function(id){
+    ensureContractsArray();
+
     const b = budgetById(id);
-    if(!b) return;
     const ok = confirm('Deseja excluir este contrato da aba Contratos? O orçamento continuará existindo.');
     if(!ok) return;
-    delete b.contractCreatedAt;
-    delete b.contractLocked;
-    saveSafe();
+
+    window.state.contracts = window.state.contracts.filter(c => String(c.budgetId) !== String(id));
+    if(b){
+      delete b.contractCreatedAt;
+      delete b.contractLocked;
+    }
+
+    saveHard();
     renderContractsJMFinal();
-    setTimeout(normalizeBudgetTable,100);
+    normalizeBudgetTable();
   };
 
   window.viewContractJMFinal = function(id){
     const b = budgetById(id);
-    if(!b){
+    const c = contractByBudgetId(id);
+    if(!b || !c){
       if(typeof toastMsg === 'function') toastMsg('Contrato não encontrado.');
       return;
     }
 
-    const render = window.__jmOpenContractRealFinal || window.openContract;
+    const render = window.__jmRealOpenContractDefinitive || window.openContract;
     if(typeof render === 'function') render(id);
     else if(typeof toastMsg === 'function') toastMsg('Erro ao abrir contrato.');
 
     setTimeout(function(){
       const root = document.getElementById('proposalPrint');
-      if(!root || !b.contractCreatedAt) return;
-      const data = brDate(b.contractCreatedAt);
+      if(!root) return;
+      const data = brDate(c.createdAt);
       root.innerHTML = root.innerHTML.replace(
         /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
         `Luís Eduardo Magalhães/BA, ${data}.`
@@ -4502,6 +4557,7 @@ init();
   };
 
   window.renderContractsJMFinal = function(){
+    ensureContractsArray();
     ensureContractsSection();
 
     const wrap = document.getElementById('contractsRows');
@@ -4512,22 +4568,20 @@ init();
     const options = ['Todos','Arquitetônico','Estrutural','Elétrico','Hidrossanitário','Combo completo'];
 
     filters.innerHTML = options.map(o =>
-      `<button class="${selected===o?'active':''}" onclick="state.contractFilter='${o}';try{save()}catch(e){};renderContractsJMFinal()">${o}</button>`
+      `<button class="${selected===o?'active':''}" onclick="state.contractFilter='${o}';saveHardJMDefinitive();renderContractsJMFinal()">${o}</button>`
     ).join('');
 
-    const contracts = (window.state?.budgets || [])
-      .filter(b => b.contractCreatedAt)
-      .filter(b => contractMatches(b, selected));
+    const contracts = getContracts().filter(x => contractMatches(x.budget, selected));
 
     if(!contracts.length){
       wrap.innerHTML = `<div class="emptyState">Nenhum contrato criado nesta categoria.</div>`;
       return;
     }
 
-    wrap.innerHTML = `<div class="contractsGrid">` + contracts.map(b => {
-      const c = typeof calcFrom === 'function' ? calcFrom(b) : {final:0};
-      const valor = typeof money === 'function' ? money(c.final || 0) : c.final || '';
-      const data = brDate(b.contractCreatedAt);
+    wrap.innerHTML = `<div class="contractsGrid">` + contracts.map(({contract,budget:b}) => {
+      const calc = typeof calcFrom === 'function' ? calcFrom(b) : {final:0};
+      const valor = typeof money === 'function' ? money(calc.final || 0) : calc.final || '';
+      const data = brDate(contract.createdAt);
 
       return `
         <div class="contractCard">
@@ -4552,54 +4606,57 @@ init();
     }).join('') + `</div>`;
   };
 
-  // Hooks seguros
+  window.saveHardJMDefinitive = saveHard;
+
+  // Hooks
   const oldGo = window.go;
-  if(typeof oldGo === 'function' && !window.__jmGoContractsFinal){
-    window.__jmGoContractsFinal = true;
+  if(typeof oldGo === 'function' && !window.__jmGoContractsDefinitive){
+    window.__jmGoContractsDefinitive = true;
     window.go = function(p){
       ensureContractsSection();
       const r = oldGo.apply(this, arguments);
+
       if(p === 'contratos'){
-        // Corrige título caso pages não tenha sido enxergado pela função original
         try{
           if(window.pageTitle) pageTitle.textContent = 'Contratos';
           if(window.pageSub) pageSub.textContent = 'Contratos criados e organizados por projeto.';
         }catch(e){}
         renderContractsJMFinal();
       }
-      if(p === 'clientes') setTimeout(normalizeBudgetTable,50);
+      if(p === 'clientes') setTimeout(normalizeBudgetTable,60);
       return r;
     };
     try{ go = window.go; }catch(e){}
   }
 
   const oldRenderAll = window.renderAll;
-  if(typeof oldRenderAll === 'function' && !window.__jmRenderAllContractsFinal){
-    window.__jmRenderAllContractsFinal = true;
+  if(typeof oldRenderAll === 'function' && !window.__jmRenderAllContractsDefinitive){
+    window.__jmRenderAllContractsDefinitive = true;
     window.renderAll = function(){
       ensureContractsSection();
       const r = oldRenderAll.apply(this, arguments);
       setTimeout(function(){
         normalizeBudgetTable();
         renderContractsJMFinal();
-      },50);
+      },60);
       return r;
     };
     try{ renderAll = window.renderAll; }catch(e){}
   }
 
   function boot(){
+    ensureContractsArray();
     ensureContractsSection();
     renderBudgetFilters();
     normalizeBudgetTable();
     renderContractsJMFinal();
 
-    if(!observerReady){
-      observerReady = true;
+    if(!mutationReady){
+      mutationReady = true;
       const target = document.getElementById('budgetRows');
       if(target){
         const obs = new MutationObserver(function(){
-          setTimeout(normalizeBudgetTable,30);
+          setTimeout(normalizeBudgetTable,40);
         });
         obs.observe(target,{childList:true,subtree:true});
       }
@@ -4607,7 +4664,7 @@ init();
   }
 
   document.addEventListener('DOMContentLoaded', function(){setTimeout(boot,200)});
-  setTimeout(boot,400);
+  setTimeout(boot,500);
 })();
 </script>
 
