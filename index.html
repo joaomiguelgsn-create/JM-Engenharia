@@ -4045,4 +4045,109 @@ init();
 })();
 </script>
 
+
+<!-- ===== V54 JM NETO — data fixa do contrato + validade completa da proposta ===== -->
+<script id="jm-v54-datas-finais">
+(function(){
+  function isoToday(){
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function brDateFromIso(iso){
+    if(!iso) return new Date().toLocaleDateString('pt-BR');
+    const [y,m,d] = String(iso).split('-');
+    if(!y || !m || !d) return new Date(iso).toLocaleDateString('pt-BR');
+    return `${d}/${m}/${y}`;
+  }
+
+  function addDaysIso(iso, days){
+    const [y,m,d] = String(iso || isoToday()).split('-').map(Number);
+    const date = new Date(y, (m || 1)-1, d || 1);
+    date.setDate(date.getDate() + days);
+    const yy = date.getFullYear();
+    const mm = String(date.getMonth()+1).padStart(2,'0');
+    const dd = String(date.getDate()).padStart(2,'0');
+    return `${yy}-${mm}-${dd}`;
+  }
+
+  function saveStateSafe(){
+    try{
+      if(typeof save === 'function') save();
+      else localStorage.setItem('jmNetoEngenhariaState', JSON.stringify(window.state || {}));
+    }catch(e){}
+  }
+
+  function ensureBudgetDate(b, field){
+    if(!b) return isoToday();
+    if(!b[field]){
+      b[field] = isoToday();
+      saveStateSafe();
+    }
+    return b[field];
+  }
+
+  function replaceButtonNames(){
+    document.querySelectorAll('button,.btn,a').forEach(el=>{
+      const t = (el.textContent || '').trim().toLowerCase();
+      if(t === 'contrato') el.textContent = 'Criar contrato';
+    });
+  }
+
+  const oldOpenContract = window.openContract;
+  if(typeof oldOpenContract === 'function'){
+    window.openContract = function(id){
+      const b = window.state?.budgets?.find(x => x.id === id);
+      const contractDate = ensureBudgetDate(b, 'contractCreatedAt');
+      oldOpenContract.apply(this, arguments);
+
+      setTimeout(()=>{
+        const root = document.getElementById('proposalPrint');
+        if(!root) return;
+
+        const dataExtenso = brDateFromIso(contractDate);
+        root.innerHTML = root.innerHTML.replace(
+          /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
+          `Luís Eduardo Magalhães/BA, ${dataExtenso}.`
+        );
+
+        // reforça o nome do botão ao voltar/renderizar
+        replaceButtonNames();
+      }, 80);
+    };
+  }
+
+  const oldProposalTemp = window.proposalTemp;
+  if(typeof oldProposalTemp === 'function'){
+    window.proposalTemp = function(b){
+      const proposalDate = ensureBudgetDate(b, 'proposalCreatedAt');
+      const result = oldProposalTemp.apply(this, arguments);
+
+      setTimeout(()=>{
+        const root = document.getElementById('proposalPrint');
+        if(!root) return;
+
+        const start = brDateFromIso(proposalDate);
+        const end = brDateFromIso(addDaysIso(proposalDate, 7));
+
+        root.innerHTML = root.innerHTML
+          .replace(/<small>Validade<\/small><b>7 dias<\/b>/g, `<small>Validade</small><b>7 dias — ${start} a ${end}</b>`)
+          .replace(/<small>Data<\/small><b>.*?<\/b>/g, `<small>Data</small><b>${start}</b>`);
+
+        replaceButtonNames();
+      }, 80);
+
+      return result;
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', replaceButtonNames);
+  document.addEventListener('click', () => setTimeout(replaceButtonNames, 80), true);
+  setTimeout(replaceButtonNames, 200);
+})();
+</script>
+
 </body></html>
