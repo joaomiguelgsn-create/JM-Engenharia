@@ -4192,134 +4192,6 @@ init();
   try{ if(typeof state !== 'undefined' && state) window.state = state; }catch(e){}
 })();
 </script>
-<script id="jm-final-contadores-certos-v54-disabled" type="text/plain">
-(function(){
-  'use strict';
-  if(window.__JM_FINAL_CONTADORES_CERTOS_V54__) return;
-  window.__JM_FINAL_CONTADORES_CERTOS_V54__ = true;
-
-  function appState(){
-    try{ if(typeof state !== 'undefined' && state && Array.isArray(state.budgets)){ window.state = state; return state; } }catch(e){}
-    try{ if(window.state && Array.isArray(window.state.budgets)) return window.state; }catch(e){}
-    try{
-      const raw = localStorage.getItem('jm_v15_online_backup') || localStorage.getItem('jm_v14_estavel');
-      const parsed = raw ? JSON.parse(raw) : {budgets:[]};
-      if(!Array.isArray(parsed.budgets)) parsed.budgets = [];
-      window.state = parsed;
-      return parsed;
-    }catch(e){ return {budgets:[]}; }
-  }
-
-  function persist(){
-    const st = appState();
-    try{ if(typeof state !== 'undefined' && state) window.state = state; }catch(e){}
-    try{ localStorage.setItem('jm_v15_online_backup', JSON.stringify(st)); localStorage.setItem('jm_v14_estavel', JSON.stringify(st)); }catch(e){}
-    try{ if(typeof queueCloudSave === 'function') queueCloudSave(); }catch(e){}
-  }
-
-  function esc(v){ return String(v ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
-  function arg(v){ return String(v ?? '').replace(/\/g,'\\').replace(/'/g,"\'"); }
-
-  function statusFiltro(b){
-    const status = String((b && b.status) || 'Aberto').trim();
-    const projectStatus = String((b && b.projectStatus) || '').trim();
-    if(status === 'Perdido') return 'Perdido';
-    if(status === 'Cancelado') return 'Cancelado';
-    if(status === 'Fechado'){
-      if(projectStatus === 'Concluído' || projectStatus === 'Concluido') return 'Concluído';
-      if(projectStatus === 'Pausado') return 'Pausado';
-      if(projectStatus === 'Cancelado') return 'Cancelado';
-      return 'Fechado';
-    }
-    return 'Aberto';
-  }
-
-  function ensureFilterBar(){
-    const rows = document.getElementById('budgetRows');
-    if(!rows) return null;
-    let bar = document.getElementById('budgetStatusFilters');
-    if(!bar){
-      bar = document.createElement('div');
-      bar.id = 'budgetStatusFilters';
-      bar.className = 'budgetStatusFilters';
-      const table = rows.closest('table');
-      if(table && table.parentNode) table.parentNode.insertBefore(bar, table);
-      else rows.parentNode.insertBefore(bar, rows);
-    }
-    return bar;
-  }
-
-  function drawFilters(){
-    const st = appState();
-    const budgets = Array.isArray(st.budgets) ? st.budgets : [];
-    const selected = st.budgetFilter || 'Todos';
-    const bar = ensureFilterBar();
-    if(!bar) return;
-    const filters = ['Todos','Aberto','Fechado','Concluído','Pausado','Cancelado','Perdido'];
-    bar.innerHTML = filters.map(f => {
-      const count = f === 'Todos' ? budgets.length : budgets.filter(b => statusFiltro(b) === f).length;
-      return `<button type="button" class="${selected===f?'active':''}" onclick="setBudgetFilterJMFinal('${arg(f)}')">${f} (${count})</button>`;
-    }).join('');
-  }
-
-  function rowFallback(b, archived){
-    const c = (typeof calcFrom === 'function') ? calcFrom(b) : {final:0};
-    const valor = (typeof money === 'function') ? money(c.final || 0) : String(c.final || 0);
-    const sf = statusFiltro(b);
-    const raw = String(b.status || 'Aberto');
-    const cls = (sf === 'Fechado' || sf === 'Concluído') ? 'ok' : (sf === 'Pausado' ? 'warn' : ((sf === 'Cancelado' || sf === 'Perdido') ? 'bad' : 'blue'));
-    const st = appState();
-    const hasContracts = Array.isArray(st.contracts) && st.contracts.some(ct => String(ct.budgetId) === String(b.id));
-    const acts = raw === 'Fechado' ? '<span class="pill ok">Em projetos</span>' : raw === 'Perdido' ? '<span class="pill bad">Perdido</span>' : `<button class="btn green" onclick="closeBudget('${arg(b.id)}')">Fechar</button><button class="btn red" onclick="lostBudget('${arg(b.id)}')">Perdido</button>`;
-    return `<tr data-budget-id="${esc(b.id)}" class="${archived?'budgetArchived':''}"><td><b>${esc(b.cliente)}</b><br><span class="muted">${esc(b.telefone||'')} ${b.cidade?'• '+esc(b.cidade):''}</span><br><span class="mini">${esc(b.endereco||'')}</span></td><td>${esc((b.projetos||[]).join(', '))}</td><td><span class="areaNowrap">${esc(b.area||0)}m²</span></td><td>${esc(valor)}</td><td><span class="pill ${cls}">${esc(sf)}</span></td><td><div class="btns"><button class="btn" onclick="editBudget('${arg(b.id)}')">Editar</button><button class="btn" onclick="openProposal('${arg(b.id)}')">Proposta</button><button class="btn primary" onclick="createContractJMFinal('${arg(b.id)}')">${hasContracts?'Criar novo contrato':'Criar contrato'}</button><button class="btn" onclick="showClientHistory('${arg(b.cliente)}')">Histórico</button><button class="btn" onclick="duplicateBudget('${arg(b.id)}')">Duplicar</button>${acts}<button class="btn red" onclick="delBudget('${arg(b.id)}')">Apagar</button></div></td></tr>`;
-  }
-
-  const rowFn = (typeof window.budgetRow === 'function') ? window.budgetRow : rowFallback;
-
-  window.setBudgetFilterJMFinal = function(f){
-    const st = appState();
-    st.budgetFilter = f;
-    try{ if(typeof state !== 'undefined' && state) state.budgetFilter = f; }catch(e){}
-    persist();
-    window.renderBudgets();
-  };
-
-  window.renderBudgets = function(){
-    const st = appState();
-    if(!Array.isArray(st.budgets)) st.budgets = [];
-    const filter = st.budgetFilter || 'Todos';
-    const rows = document.getElementById('budgetRows');
-    drawFilters();
-    if(!rows) return;
-    const visible = st.budgets.filter(b => filter === 'Todos' || statusFiltro(b) === filter);
-    const open = visible.filter(b => String(b.status || 'Aberto') === 'Aberto');
-    const archived = visible.filter(b => String(b.status || 'Aberto') !== 'Aberto');
-    let html = '';
-    if(open.length) html += `<tr class="budgetGroupRow"><td colspan="6">Orçamentos em aberto — aparecem primeiro</td></tr>` + open.map(b => rowFn(b,false)).join('');
-    if(archived.length) html += `<tr class="budgetGroupRow"><td colspan="6">Arquivados / fechados / perdidos</td></tr>` + archived.map(b => rowFn(b,true)).join('');
-    rows.innerHTML = html || `<tr><td colspan="6" class="muted">Nenhum orçamento encontrado para o filtro “${esc(filter)}”.</td></tr>`;
-    drawFilters();
-  };
-  try{ renderBudgets = window.renderBudgets; }catch(e){}
-
-  const oldRenderAll = window.renderAll || (typeof renderAll === 'function' ? renderAll : null);
-  if(typeof oldRenderAll === 'function' && !window.__JM_RENDERALL_SYNC_V54__){
-    window.__JM_RENDERALL_SYNC_V54__ = true;
-    window.renderAll = function(){
-      try{ if(typeof state !== 'undefined' && state) window.state = state; }catch(e){}
-      const r = oldRenderAll.apply(this, arguments);
-      setTimeout(function(){ try{ window.renderBudgets(); }catch(e){} }, 20);
-      return r;
-    };
-    try{ renderAll = window.renderAll; }catch(e){}
-  }
-
-  function boot(){ try{ if(typeof state !== 'undefined' && state) window.state = state; }catch(e){} drawFilters(); if(document.getElementById('budgetRows')) window.renderBudgets(); }
-  document.addEventListener('DOMContentLoaded', function(){ setTimeout(boot, 100); setTimeout(boot, 700); });
-  setTimeout(boot, 300);
-})();
-</script>
-
 <!-- PATCH JM NETO 2026-05-08 — filtros clicáveis + contratos persistentes, preservando layout original -->
 <style id="jm-patch-final-estavel-style">
   .budgetStatusFilters,.contractsToolbar{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 18px}
@@ -4366,29 +4238,25 @@ init();
 })();
 </script>
 
-<script id="jm-patch-contratos-fantasma-final">
+<script id="jm-patch-contratos-nuvem-definitivo">
 (function(){
   'use strict';
-  if(window.__JM_PATCH_CONTRATOS_FANTASMA_FINAL__) return;
-  window.__JM_PATCH_CONTRATOS_FANTASMA_FINAL__ = true;
+  if(window.__JM_CONTRATOS_NUVEM_DEFINITIVO__) return;
+  window.__JM_CONTRATOS_NUVEM_DEFINITIVO__ = true;
+
+  const TOMBSTONE_KEY = 'jm_deleted_contracts_tombstones_v1';
 
   function ensureState(){
     if(!window.state) window.state = {};
     if(!Array.isArray(window.state.budgets)) window.state.budgets = [];
     if(!Array.isArray(window.state.contracts)) window.state.contracts = [];
+    if(!Array.isArray(window.state.deletedContracts)) window.state.deletedContracts = [];
   }
 
-  function saveSafe(){
-    ensureState();
-    try{
-      localStorage.setItem('jm_v15_online_backup', JSON.stringify(window.state));
-      localStorage.setItem('jm_v14_estavel', JSON.stringify(window.state));
-      localStorage.setItem('jm_state', JSON.stringify(window.state));
-      if(typeof window.saveHardJMDefinitive === 'function') window.saveHardJMDefinitive();
-      if(typeof window.queueCloudSave === 'function') window.queueCloudSave();
-    }catch(e){
-      console.error('Erro ao salvar:', e);
-    }
+  function normText(v){
+    return String(v || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .toLowerCase().replace(/\s+/g,' ').trim();
   }
 
   function esc(v){
@@ -4401,211 +4269,370 @@ init();
     return String(v ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   }
 
-  function todayBR(v){
-    if(typeof window.brDate === 'function') return window.brDate(v);
-    if(!v) return '';
-    var s = String(v).slice(0,10);
-    var p = s.split('-');
-    return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : s;
+  function getTombstones(){
+    try{
+      const a = JSON.parse(localStorage.getItem(TOMBSTONE_KEY) || '[]');
+      return Array.isArray(a) ? a : [];
+    }catch(e){ return []; }
   }
 
-  function moneySafe(v){
-    if(typeof window.money === 'function') return window.money(v || 0);
-    return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  function setTombstones(list){
+    const clean = Array.isArray(list) ? list.slice(-300) : [];
+    localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(clean));
+    ensureState();
+    window.state.deletedContracts = clean;
+  }
+
+  function addTombstone(t){
+    const list = getTombstones();
+    const key = [t.budgetId || '', normText(t.cliente), normText(t.projetos), normText(t.cidade)].join('|');
+    const exists = list.some(x => [x.budgetId || '', normText(x.cliente), normText(x.projetos), normText(x.cidade)].join('|') === key);
+    if(!exists){
+      list.push(Object.assign({deletedAt:new Date().toISOString()}, t));
+      setTombstones(list);
+    }
+  }
+
+  function projectTextSafe(b){
+    if(!b) return '';
+    if(typeof window.projectText === 'function') {
+      try { return window.projectText(b); } catch(e){}
+    }
+    if(Array.isArray(b.projetos)) return b.projetos.join(', ');
+    return b.tipo || b.projeto || '';
   }
 
   function calcSafe(b){
-    if(typeof window.calcFrom === 'function') return window.calcFrom(b);
-    return {final:Number(b && (b.valor || b.total || b.preco || 0)) || 0};
+    if(typeof window.calcFrom === 'function'){
+      try { return window.calcFrom(b); } catch(e){}
+    }
+    return {final:Number(b?.valor || b?.total || b?.preco || 0) || 0};
   }
 
-  function projectSafe(b){
-    if(typeof window.projectText === 'function') return window.projectText(b);
-    var arr = Array.isArray(b && b.projetos) ? b.projetos : [];
-    return arr.length ? arr.join(', ') : (b && b.tipo) || 'Projeto técnico';
+  function moneySafe(v){
+    if(typeof window.money === 'function'){
+      try { return window.money(v || 0); } catch(e){}
+    }
+    return 'R$ ' + Number(v || 0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   }
 
-  function matchesContractFilter(b, filter){
-    if(!filter || filter === 'Todos') return true;
-    if(typeof window.contractMatches === 'function') return window.contractMatches(b, filter);
-    var txt = projectSafe(b).toLowerCase();
-    if(filter === 'Combo completo') return txt.includes('combo');
-    return txt.includes(String(filter).toLowerCase());
+  function brDateSafe(v){
+    if(typeof window.brDate === 'function'){
+      try { return window.brDate(v); } catch(e){}
+    }
+    if(!v) return '';
+    const p = String(v).slice(0,10).split('-');
+    return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(v);
   }
 
-  function budgetById(id){
-    ensureState();
-    return window.state.budgets.find(function(b){ return String(b.id) === String(id); });
+  function budgetById(id, st=window.state){
+    return (st.budgets || []).find(b => String(b.id) === String(id));
   }
 
   function hasOldContractFlag(b){
     if(!b) return false;
-    return !!(b.contractCreatedAt || b.contractLocked || b.contractId || b.contratoCriado || b.contratoData || b.contractDate);
+    return !!(
+      b.contractCreatedAt || b.contractLocked || b.contractId || b.contractDate ||
+      b.contratoCriado || b.contratoData || b.contratoId || b.hasContract ||
+      b.contractNumber || b.contrato || b.contratos
+    );
   }
 
-  function contractDateFromBudget(b){
-    return b.contractCreatedAt || b.contractDate || b.contratoData || b.updatedAt || b.createdAt || new Date().toISOString();
+  function clearBudgetContractFlags(b){
+    if(!b) return;
+    [
+      'contractCreatedAt','contractLocked','contractId','contractDate','contractNumber',
+      'contratoCriado','contratoData','contratoId','hasContract','contrato','contratos'
+    ].forEach(k => { try { delete b[k]; } catch(e){} });
   }
 
-  function explicitContractsForBudget(budgetId){
-    ensureState();
-    return window.state.contracts.filter(function(c){
-      return String(c.budgetId) === String(budgetId);
+  function tombstoneMatchesBudget(t, b){
+    if(!t || !b) return false;
+    if(t.budgetId && b.id && String(t.budgetId) === String(b.id)) return true;
+
+    const tc = normText(t.cliente);
+    const bc = normText(b.cliente);
+    if(tc && bc && tc === bc){
+      const tp = normText(t.projetos);
+      const bp = normText(projectTextSafe(b));
+      const tcity = normText(t.cidade);
+      const bcity = normText(b.cidade);
+      if((!tp || !bp || tp === bp || bp.includes(tp) || tp.includes(bp)) &&
+         (!tcity || !bcity || tcity === bcity)){
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function applyTombstonesToState(st){
+    if(!st) return st;
+    if(!Array.isArray(st.budgets)) st.budgets = [];
+    if(!Array.isArray(st.contracts)) st.contracts = [];
+
+    const tombs = [
+      ...getTombstones(),
+      ...(Array.isArray(st.deletedContracts) ? st.deletedContracts : [])
+    ];
+
+    if(!tombs.length) return st;
+
+    const deletedBudgetIds = new Set();
+
+    st.budgets.forEach(b => {
+      if(tombs.some(t => tombstoneMatchesBudget(t, b))){
+        deletedBudgetIds.add(String(b.id));
+        clearBudgetContractFlags(b);
+      }
     });
+
+    st.contracts = st.contracts.filter(c => {
+      if(deletedBudgetIds.has(String(c.budgetId))) return false;
+      const b = budgetById(c.budgetId, st);
+      return !tombs.some(t => tombstoneMatchesBudget(t, b));
+    });
+
+    st.deletedContracts = tombs.slice(-300);
+    return st;
   }
 
-  // Lista unificada: contratos novos + contratos antigos/fantasma marcados no orçamento.
-  function getUnifiedContracts(){
+  async function hardSaveToCloud(){
     ensureState();
-    var items = [];
-    var seenBudgetExplicit = new Set();
+    applyTombstonesToState(window.state);
 
-    window.state.contracts.forEach(function(c, idx){
-      var b = budgetById(c.budgetId);
+    try{
+      localStorage.setItem('jm_v15_online_backup', JSON.stringify(window.state));
+      localStorage.setItem('jm_v14_estavel', JSON.stringify(window.state));
+      localStorage.setItem('jm_state', JSON.stringify(window.state));
+    }catch(e){ console.error('Erro ao salvar local:', e); }
+
+    try{
+      if(typeof window.saveHardJMDefinitive === 'function') window.saveHardJMDefinitive();
+    }catch(e){ console.warn('saveHard falhou:', e); }
+
+    // Sobrescreve a nuvem imediatamente. Isso é o que impede o contrato de voltar.
+    try{
+      if(typeof sb !== 'undefined' && sb && typeof cloudUser !== 'undefined' && cloudUser){
+        const payload = {
+          user_id: cloudUser.id,
+          data: (typeof normalize === 'function' ? normalize(window.state) : window.state),
+          updated_at: new Date().toISOString()
+        };
+        const {error} = await sb.from('jm_state').upsert(payload, {onConflict:'user_id'});
+        if(error) throw error;
+        if(typeof cloudLast !== 'undefined') cloudLast = new Date().toLocaleString('pt-BR');
+        if(typeof renderCloud === 'function') renderCloud();
+      }else if(typeof window.queueCloudSave === 'function'){
+        window.queueCloudSave();
+      }
+    }catch(e){
+      console.error('Erro ao sobrescrever nuvem:', e);
+      if(typeof window.toastMsg === 'function') window.toastMsg('Apagou localmente, mas deu erro ao salvar na nuvem: ' + e.message);
+    }
+  }
+
+  function unifiedContracts(){
+    ensureState();
+    applyTombstonesToState(window.state);
+
+    const items = [];
+    const explicitBudgetIds = new Set();
+
+    window.state.contracts.forEach((c, i) => {
+      const b = budgetById(c.budgetId);
       if(!b) return;
-      seenBudgetExplicit.add(String(c.budgetId));
+      explicitBudgetIds.add(String(c.budgetId));
       items.push({
         kind:'new',
-        id: c.id || ('contract_' + idx + '_' + c.budgetId),
-        contract:c,
-        budget:b,
+        id:c.id || ('c_' + i + '_' + c.budgetId),
         budgetId:String(c.budgetId),
-        createdAt:c.createdAt || contractDateFromBudget(b)
+        budget:b,
+        createdAt:c.createdAt || b.contractCreatedAt || b.contractDate || b.contratoData || b.createdAt || ''
       });
     });
 
-    window.state.budgets.forEach(function(b){
+    window.state.budgets.forEach(b => {
       if(!b || !b.id) return;
-      var bid = String(b.id);
-      if(seenBudgetExplicit.has(bid)) return;
+      if(explicitBudgetIds.has(String(b.id))) return;
       if(!hasOldContractFlag(b)) return;
       items.push({
         kind:'old',
-        id:'old_' + bid,
-        contract:null,
+        id:'old_' + b.id,
+        budgetId:String(b.id),
         budget:b,
-        budgetId:bid,
-        createdAt:contractDateFromBudget(b)
+        createdAt:b.contractCreatedAt || b.contractDate || b.contratoData || b.updatedAt || b.createdAt || ''
       });
     });
 
     return items;
   }
 
-  // Esta é a correção principal: apaga contrato novo OU contrato fantasma antigo.
-  window.deleteContractJMFinal = window.deleteContractJMFinalHard = function(ref){
-    ensureState();
-    var s = String(ref);
+  function findItemByRef(ref){
+    const s = String(ref || '');
+    let item = unifiedContracts().find(x => String(x.id) === s || String(x.budgetId) === s);
+    if(item) return item;
 
-    var target = getUnifiedContracts().find(function(item){
-      return String(item.id) === s ||
-             String(item.budgetId) === s ||
-             (item.contract && String(item.contract.id) === s);
+    // Busca por contrato explícito
+    const c = (window.state.contracts || []).find(c => String(c.id) === s || String(c.budgetId) === s);
+    if(c){
+      const b = budgetById(c.budgetId);
+      if(b) return {kind:'new', id:c.id, budgetId:String(c.budgetId), budget:b, createdAt:c.createdAt || ''};
+    }
+    return null;
+  }
+
+  async function deleteByItem(item){
+    ensureState();
+    if(!item || !item.budget) return false;
+
+    const b = item.budget;
+    addTombstone({
+      budgetId: String(item.budgetId || b.id || ''),
+      cliente: b.cliente || '',
+      projetos: projectTextSafe(b),
+      cidade: b.cidade || ''
     });
 
-    if(!target){
+    const bid = String(item.budgetId || b.id || '');
+
+    // Remove qualquer contrato novo vinculado ao orçamento
+    window.state.contracts = (window.state.contracts || []).filter(c => String(c.budgetId) !== bid && String(c.id) !== String(item.id));
+
+    // Remove marcações antigas do orçamento
+    const realBudget = budgetById(bid);
+    clearBudgetContractFlags(realBudget || b);
+
+    await hardSaveToCloud();
+
+    if(typeof window.renderContractsJMFinal === 'function') window.renderContractsJMFinal();
+    if(typeof window.renderAll === 'function') setTimeout(window.renderAll, 60);
+    if(typeof window.toastMsg === 'function') window.toastMsg('Contrato excluído e nuvem atualizada.');
+    return true;
+  }
+
+  window.deleteContractJMFinal = window.deleteContractJMFinalHard = async function(ref){
+    const item = findItemByRef(ref);
+    if(!item){
       if(typeof window.toastMsg === 'function') window.toastMsg('Contrato não encontrado ou já excluído.');
       else alert('Contrato não encontrado ou já excluído.');
       return;
     }
 
-    var clientName = target.budget && target.budget.cliente ? target.budget.cliente : 'este cliente';
-    if(!confirm('Excluir o contrato de ' + clientName + '? O orçamento continuará salvo.')) return;
-
-    var bid = String(target.budgetId);
-
-    // Remove contratos da lista nova ligados a esse orçamento OU ao id clicado
-    window.state.contracts = window.state.contracts.filter(function(c){
-      return String(c.budgetId) !== bid && String(c.id) !== s;
-    });
-
-    // Remove todas as marcações antigas que fazem o contrato fantasma reaparecer
-    var b = budgetById(bid);
-    if(b){
-      delete b.contractCreatedAt;
-      delete b.contractLocked;
-      delete b.contractId;
-      delete b.contractDate;
-      delete b.contratoCriado;
-      delete b.contratoData;
-      delete b.contratoId;
-      delete b.hasContract;
-      delete b.contractNumber;
-    }
-
-    saveSafe();
-
-    if(typeof window.renderContractsJMFinal === 'function') window.renderContractsJMFinal();
-    if(typeof window.normalizeBudgetTable === 'function') window.normalizeBudgetTable();
-    if(typeof window.renderAll === 'function') setTimeout(window.renderAll, 80);
-
-    if(typeof window.toastMsg === 'function') window.toastMsg('Contrato excluído.');
+    const nome = item.budget?.cliente || 'este cliente';
+    if(!confirm('Excluir o contrato de ' + nome + '? O orçamento continuará salvo.')) return;
+    await deleteByItem(item);
   };
 
-  // Render novo e compatível, garantindo que o botão dos antigos chame o budgetId.
-  window.renderContractsJMFinal = function(){
-    ensureState();
-    var filters = document.getElementById('contractFilters');
-    var wrap = document.getElementById('contractsRows');
-    if(!filters || !wrap) return;
+  // Captura QUALQUER botão "Excluir contrato", mesmo se o onclick antigo estiver errado.
+  document.addEventListener('click', function(ev){
+    const btn = ev.target && ev.target.closest ? ev.target.closest('button') : null;
+    if(!btn) return;
+    if(!/excluir\s+contrato/i.test(btn.textContent || '')) return;
 
-    var selected = window.state.contractFilter || 'Todos';
-    var options = ['Todos','Arquitetônico','Estrutural','Elétrico','Hidrossanitário','Combo completo'];
+    const card = btn.closest('.contractCard');
+    if(!card) return;
 
-    filters.innerHTML = options.map(function(o){
-      return '<button class="' + (selected === o ? 'active' : '') + '" onclick="state.contractFilter=\'' + arg(o) + '\';saveSafeContratoPatch();renderContractsJMFinal()">' + esc(o) + '</button>';
-    }).join('');
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
 
-    var list = getUnifiedContracts()
-      .filter(function(item){ return matchesContractFilter(item.budget, selected); })
-      .sort(function(a,b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
+    const title = card.querySelector('h4')?.textContent || '';
+    const proj = card.querySelector('.muted')?.textContent || '';
 
-    if(!list.length){
-      wrap.innerHTML = '<div class="emptyState">Nenhum contrato criado nesta categoria.</div>';
+    let item = null;
+    const cards = Array.from(document.querySelectorAll('.contractCard'));
+    const idx = cards.indexOf(card);
+    const list = unifiedContracts();
+    if(idx >= 0 && list[idx]) item = list[idx];
+
+    if(!item){
+      item = list.find(x => normText(x.budget?.cliente) === normText(title) &&
+                            (!proj || normText(projectTextSafe(x.budget)) === normText(proj)));
+    }
+
+    if(!item){
+      if(typeof window.toastMsg === 'function') window.toastMsg('Não consegui identificar este contrato.');
+      else alert('Não consegui identificar este contrato.');
       return;
     }
 
-    wrap.innerHTML = '<div class="contractsGrid">' + list.map(function(item, idx){
-      var b = item.budget;
-      var calc = calcSafe(b);
-      var valor = moneySafe(calc.final || 0);
-      var data = todayBR(item.createdAt);
-      var btnRef = item.kind === 'old' ? item.budgetId : item.id;
+    const nome = item.budget?.cliente || title || 'este cliente';
+    if(!confirm('Excluir o contrato de ' + nome + '? O orçamento continuará salvo.')) return;
+    deleteByItem(item);
+  }, true);
 
+  // Render próprio dos contratos, já sem os apagados.
+  window.renderContractsJMFinal = function(){
+    ensureState();
+    applyTombstonesToState(window.state);
+
+    const filters = document.getElementById('contractFilters');
+    const rows = document.getElementById('contractsRows');
+    if(!filters || !rows) return;
+
+    const opts = ['Todos','Arquitetônico','Estrutural','Elétrico','Hidrossanitário','Combo completo'];
+    const selected = window.state.contractFilter || 'Todos';
+
+    filters.innerHTML = opts.map(o =>
+      '<button type="button" class="' + (selected === o ? 'active' : '') +
+      '" onclick="state.contractFilter=\'' + arg(o) + '\';renderContractsJMFinal();">' + esc(o) + '</button>'
+    ).join('');
+
+    const list = unifiedContracts().filter(item => {
+      if(selected === 'Todos') return true;
+      const txt = normText(projectTextSafe(item.budget));
+      if(selected === 'Combo completo') return txt.includes('combo');
+      return txt.includes(normText(selected));
+    });
+
+    if(!list.length){
+      rows.innerHTML = '<div class="emptyState">Nenhum contrato criado nesta categoria.</div>';
+      return;
+    }
+
+    rows.innerHTML = '<div class="contractsGrid">' + list.map((item, i) => {
+      const b = item.budget;
+      const calc = calcSafe(b);
+      const ref = item.budgetId;
       return '<div class="contractCard">' +
         '<div class="contractCardTop">' +
-          '<div><h4>' + esc(b.cliente || 'Cliente') + '</h4><p class="muted" style="margin:0">' + esc(projectSafe(b)) + '</p></div>' +
-          '<span class="pill ok">Contrato ' + (idx + 1) + '</span>' +
+          '<div><h4>' + esc(b.cliente || 'Cliente') + '</h4><p class="muted" style="margin:0">' + esc(projectTextSafe(b)) + '</p></div>' +
+          '<span class="pill ok">Contrato ' + (i + 1) + '</span>' +
         '</div>' +
         '<div class="contractMeta">' +
-          '<span>Data: ' + esc(data || 'Sem data') + '</span>' +
-          '<span>' + esc(valor) + '</span>' +
+          '<span>Data: ' + esc(brDateSafe(item.createdAt || new Date().toISOString())) + '</span>' +
+          '<span>' + esc(moneySafe(calc.final || 0)) + '</span>' +
           '<span>' + esc(b.cidade || 'Cidade não informada') + '</span>' +
         '</div>' +
         '<div class="btns">' +
           '<button class="btn primary" onclick="viewContractJMFinal(\'' + arg(b.id) + '\')">Abrir contrato</button>' +
           '<button class="btn" onclick="openProposal(\'' + arg(b.id) + '\')">Ver proposta</button>' +
-          '<button class="btn red" onclick="deleteContractJMFinalHard(\'' + arg(btnRef) + '\')">Excluir contrato</button>' +
+          '<button class="btn red" onclick="deleteContractJMFinalHard(\'' + arg(ref) + '\')">Excluir contrato</button>' +
         '</div>' +
       '</div>';
     }).join('') + '</div>';
   };
 
-  window.saveSafeContratoPatch = saveSafe;
-
-  // Re-render depois que os scripts originais terminarem.
-  function boot(){
-    try{
+  // Protege contra "Puxar da nuvem" trazendo contrato deletado.
+  if(typeof window.cloudLoad === 'function' && !window.__JM_CLOUDLOAD_TOMBSTONE_WRAPPED__){
+    const originalCloudLoad = window.cloudLoad;
+    window.__JM_CLOUDLOAD_TOMBSTONE_WRAPPED__ = true;
+    window.cloudLoad = async function(force){
+      await originalCloudLoad(force);
+      ensureState();
+      applyTombstonesToState(window.state);
+      await hardSaveToCloud();
       if(typeof window.renderContractsJMFinal === 'function') window.renderContractsJMFinal();
-    }catch(e){
-      console.error('Erro no patch de contratos:', e);
-    }
+      if(typeof window.renderAll === 'function') setTimeout(window.renderAll, 80);
+    };
   }
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', function(){ setTimeout(boot, 300); });
-  }else{
-    setTimeout(boot, 300);
-  }
+
+  // Aplica limpeza na inicialização.
+  setTimeout(function(){
+    ensureState();
+    applyTombstonesToState(window.state);
+    if(typeof window.renderContractsJMFinal === 'function') window.renderContractsJMFinal();
+  }, 400);
 })();
 </script>
 
