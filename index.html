@@ -4253,6 +4253,24 @@ init();
     if(!Array.isArray(window.state.deletedContracts)) window.state.deletedContracts = [];
   }
 
+  function removeContractCardNow(card){
+    try{
+      if(!card || !card.parentNode) return;
+      card.style.transition = 'opacity .16s ease, transform .16s ease';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(.985)';
+      setTimeout(function(){
+        try{
+          if(card && card.parentNode) card.parentNode.removeChild(card);
+          const rows = document.getElementById('contractsRows');
+          if(rows && !rows.querySelector('.contractCard')){
+            rows.innerHTML = '<div class="emptyState">Nenhum contrato criado nesta categoria.</div>';
+          }
+        }catch(e){}
+      }, 170);
+    }catch(e){}
+  }
+
   function normText(v){
     return String(v || '')
       .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -4520,6 +4538,11 @@ init();
 
     const nome = item.budget?.cliente || 'este cliente';
     if(!confirm('Excluir o contrato de ' + nome + '? O orçamento continuará salvo.')) return;
+    try{
+      const activeBtn = document.activeElement && /excluir\s+contrato/i.test(document.activeElement.textContent || '') ? document.activeElement : null;
+      const activeCard = activeBtn && activeBtn.closest ? activeBtn.closest('.contractCard') : null;
+      if(activeCard) removeContractCardNow(activeCard);
+    }catch(e){}
     await deleteByItem(item);
   };
 
@@ -4558,6 +4581,7 @@ init();
 
     const nome = item.budget?.cliente || title || 'este cliente';
     if(!confirm('Excluir o contrato de ' + nome + '? O orçamento continuará salvo.')) return;
+    removeContractCardNow(card);
     deleteByItem(item);
   }, true);
 
@@ -4636,44 +4660,5 @@ init();
 })();
 </script>
 
-
-<script id="jm-patch-sumir-contrato-na-hora">
-(function(){
-  'use strict';
-  if(window.__JM_PATCH_SUMIR_CONTRATO_NA_HORA__) return;
-  window.__JM_PATCH_SUMIR_CONTRATO_NA_HORA__ = true;
-
-  document.addEventListener('click', function(ev){
-    const btn = ev.target && ev.target.closest ? ev.target.closest('button') : null;
-    if(!btn) return;
-    if(!/excluir\s+contrato/i.test(btn.textContent || '')) return;
-
-    const card = btn.closest('.contractCard');
-    if(!card) return;
-
-    // Aguarda o confirm do script principal. Se o usuário confirmar, o card desaparece logo em seguida.
-    setTimeout(function(){
-      try{
-        card.style.transition = 'opacity .18s ease, transform .18s ease, max-height .22s ease, margin .22s ease, padding .22s ease';
-        card.style.opacity = '0';
-        card.style.transform = 'scale(.98)';
-        card.style.maxHeight = '0';
-        card.style.margin = '0';
-        card.style.padding = '0';
-        card.style.overflow = 'hidden';
-
-        setTimeout(function(){
-          if(card && card.parentNode) card.parentNode.removeChild(card);
-
-          const rows = document.getElementById('contractsRows');
-          if(rows && !rows.querySelector('.contractCard')){
-            rows.innerHTML = '<div class="emptyState">Nenhum contrato criado nesta categoria.</div>';
-          }
-        }, 240);
-      }catch(e){}
-    }, 80);
-  }, true);
-})();
-</script>
 
 </body></html>
