@@ -1174,6 +1174,36 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
   align-items:flex-start!important;
 }
 
+
+/* ===== PATCH COMBO COMPLETO — tarefas por disciplina ===== */
+.comboTaskGroup{
+  background:#fffdf8;
+  border:1px solid #e7ddcf;
+  border-radius:22px;
+  padding:16px;
+  margin:0 0 16px;
+  box-shadow:0 8px 24px rgba(34,28,20,.045);
+}
+.comboTaskGroup h4{
+  margin:0 0 10px!important;
+  color:#101828!important;
+  font-size:20px!important;
+}
+.comboTaskGroup .mini{
+  color:#667085!important;
+}
+.comboTaskCount{
+  display:inline-flex;
+  border-radius:999px;
+  padding:6px 9px;
+  font-size:11px;
+  font-weight:900;
+  background:#f4efe7;
+  color:#7c4d12;
+  border:1px solid #e7d6bc;
+  margin-left:8px;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -2193,6 +2223,147 @@ init();
       console.error(e);
     }
   }, 100);
+})();
+</script>
+
+
+<script>
+/* ===== PATCH COMBO COMPLETO FINAL ===== */
+(function(){
+  const COMBO_DISCIPLINES = ['Arquitetônico','Estrutural','Hidrossanitário','Elétrico'];
+
+  function projectListForTasks(b){
+    const list = Array.isArray(b.projetos) ? [...b.projetos] : [];
+    if(list.includes('Combo Completo')){
+      COMBO_DISCIPLINES.forEach(p=>{
+        if(!list.includes(p)) list.push(p);
+      });
+    }
+    return list.length ? list : ['Geral'];
+  }
+
+  // Se fechar Combo Completo, cria tarefas de todas as disciplinas separadas.
+  if(typeof window.createAutoTasksForProject === 'function'){
+    window.createAutoTasksForProject = function(projectId, silent=false){
+      const b = state.budgets.find(x=>x.id===projectId);
+      if(!b) return 0;
+
+      let created = 0;
+      projectListForTasks(b).forEach(tipo=>{
+        if(tipo === 'Combo Completo') return;
+
+        const tpl = (window.JM_TASK_TEMPLATES && (JM_TASK_TEMPLATES[tipo] || JM_TASK_TEMPLATES.Geral)) || [
+          ['Levantamento','Conferir informações iniciais'],
+          ['Desenvolvimento','Desenvolver desenho técnico'],
+          ['Conferência','Revisar prancha'],
+          ['Entrega','Gerar PDF final']
+        ];
+
+        tpl.forEach(([fase, etapa], idx)=>{
+          const exists = state.tasks.some(t=>t.projectId===projectId && t.tipo===tipo && t.etapa===etapa);
+          if(!exists){
+            state.tasks.push({
+              id: uid(),
+              projectId,
+              tipo,
+              etapa,
+              fase,
+              resp:'João Miguel',
+              prio:idx<3?'Média':'Baixa',
+              status:'Não iniciada',
+              prazo:b.entrega||'',
+              obs:'Tarefa criada automaticamente.'
+            });
+            created++;
+          }
+        });
+      });
+
+      if(created && !silent) toastMsg(created+' tarefa(s) criadas automaticamente.');
+      return created;
+    };
+  }
+
+  // Aba tarefas: quando for Combo Completo, mostra grupos separados por disciplina.
+  const oldRenderTasks = window.renderTasks;
+  if(typeof oldRenderTasks === 'function'){
+    window.renderTasks = function(){
+      oldRenderTasks();
+
+      const pid = state.selectedProject;
+      const b = state.budgets.find(x=>x.id===pid);
+      if(!b || !(b.projetos||[]).includes('Combo Completo')) return;
+      if(!document.getElementById('tasksList')) return;
+
+      const groups = COMBO_DISCIPLINES
+        .map(tipo => ({
+          tipo,
+          tasks: state.tasks.filter(t=>t.projectId===pid && t.tipo===tipo)
+        }))
+        .filter(g=>g.tasks.length);
+
+      if(!groups.length) return;
+
+      tasksList.innerHTML = groups.map(g=>{
+        const done = g.tasks.filter(t=>t.status==='Concluída').length;
+        const pct = Math.round((done / g.tasks.length) * 100);
+
+        return `
+          <div class="comboTaskGroup">
+            <h4>${g.tipo}<span class="comboTaskCount">${done}/${g.tasks.length} concluídas</span></h4>
+            <div class="bar" style="margin-bottom:12px"><i style="width:${pct}%"></i></div>
+            ${g.tasks.map(t=>`
+              <div class="taskItem">
+                <div>
+                  <b>${t.etapa}</b>
+                  <div class="mini">${t.fase||'-'} • ${t.status}</div>
+                </div>
+                <div class="btns">
+                  <button class="btn" onclick="setTaskStatus('${t.id}','Em andamento')">Andamento</button>
+                  <button class="btn green" onclick="setTaskStatus('${t.id}','Concluída')">Concluir</button>
+                  <button class="btn red" onclick="deleteTask('${t.id}')">Apagar</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }).join('');
+    };
+  }
+
+  // No orçamento: marcou Combo Completo, desmarca os outros. Marcou outro, desmarca Combo Completo.
+  function applyComboCheckboxLogic(){
+    const checks = [...document.querySelectorAll('input[type="checkbox"][value]')];
+    const combo = checks.find(c=>c.value === 'Combo Completo');
+    if(!combo) return;
+
+    checks.forEach(ch=>{
+      if(ch.dataset.comboLogicApplied) return;
+      ch.dataset.comboLogicApplied = '1';
+
+      ch.addEventListener('change', ()=>{
+        if(ch.value === 'Combo Completo' && ch.checked){
+          checks.forEach(other=>{
+            if(other !== ch) other.checked = false;
+          });
+        }
+
+        if(ch.value !== 'Combo Completo' && ch.checked && combo.checked){
+          combo.checked = false;
+        }
+
+        if(typeof updateCalc === 'function') updateCalc();
+      });
+    });
+  }
+
+  const oldRenderAllCombo = window.renderAll;
+  window.renderAll = function(){
+    oldRenderAllCombo();
+    setTimeout(applyComboCheckboxLogic, 30);
+  };
+
+  setTimeout(applyComboCheckboxLogic, 100);
 })();
 </script>
 
