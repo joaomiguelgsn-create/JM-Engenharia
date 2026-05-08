@@ -4661,4 +4661,95 @@ init();
 </script>
 
 
+
+<script id="jm-patch-contratos-some-na-hora-20260508">
+(function(){
+  'use strict';
+  if(window.__JM_CONTRATOS_SOME_NA_HORA_20260508__) return;
+  window.__JM_CONTRATOS_SOME_NA_HORA_20260508__ = true;
+
+  function rows(){ return document.getElementById('contractsRows'); }
+
+  function emptyIfNeeded(){
+    var r = rows();
+    if(r && !r.querySelector('.contractCard')){
+      r.innerHTML = '<div class="emptyState">Nenhum contrato criado nesta categoria.</div>';
+    }
+  }
+
+  function removeClickedCard(){
+    try{
+      var el = document.activeElement;
+      var card = el && el.closest ? el.closest('.contractCard') : null;
+      if(card && card.parentNode){
+        card.parentNode.removeChild(card);
+        emptyIfNeeded();
+      }
+    }catch(e){}
+  }
+
+  function renderContractsFinalSoon(){
+    [0, 80, 180, 450].forEach(function(ms){
+      setTimeout(function(){
+        try{
+          if(typeof window.renderContractsJMFinal === 'function') window.renderContractsJMFinal();
+          emptyIfNeeded();
+        }catch(e){}
+      }, ms);
+    });
+  }
+
+  // O bug era visual: um render antigo podia redesenhar a aba depois da exclusão.
+  // Este wrapper mantém o render antigo, mas garante que a aba Contratos seja redesenhada pela versão filtrada no final.
+  if(typeof window.renderAll === 'function' && !window.__JM_RENDERALL_CONTRATOS_FINAL_WRAPPED_20260508__){
+    var originalRenderAll = window.renderAll;
+    window.__JM_RENDERALL_CONTRATOS_FINAL_WRAPPED_20260508__ = true;
+    window.renderAll = function(){
+      var ret = originalRenderAll.apply(this, arguments);
+      renderContractsFinalSoon();
+      return ret;
+    };
+    try{ renderAll = window.renderAll; }catch(e){}
+  }
+
+  function wrapDeleteFunction(name){
+    var fn = window[name];
+    if(typeof fn !== 'function' || fn.__jmSomeNaHoraWrapped) return;
+    var wrapped = async function(){
+      removeClickedCard();
+      try{
+        var ret = fn.apply(this, arguments);
+        if(ret && typeof ret.then === 'function') await ret;
+        return ret;
+      }finally{
+        renderContractsFinalSoon();
+      }
+    };
+    wrapped.__jmSomeNaHoraWrapped = true;
+    window[name] = wrapped;
+  }
+
+  wrapDeleteFunction('deleteContractJMFinal');
+  wrapDeleteFunction('deleteContractJMFinalHard');
+
+  // Garantia extra para botões que sejam recriados dinamicamente.
+  document.addEventListener('click', function(ev){
+    var btn = ev.target && ev.target.closest ? ev.target.closest('button') : null;
+    if(!btn || !/excluir\s+contrato/i.test(btn.textContent || '')) return;
+    setTimeout(function(){
+      try{
+        var card = btn.closest('.contractCard');
+        if(card && card.parentNode){
+          card.parentNode.removeChild(card);
+          emptyIfNeeded();
+        }
+      }catch(e){}
+      renderContractsFinalSoon();
+    }, 30);
+  }, true);
+
+  renderContractsFinalSoon();
+})();
+</script>
+
 </body></html>
