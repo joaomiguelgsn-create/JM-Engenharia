@@ -1204,6 +1204,23 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
   margin-left:8px;
 }
 
+
+/* ===== FIX COMBO: esconder filtro "Combo Completo" e mostrar disciplinas ===== */
+.comboDisciplineHeader{
+  margin:18px 0 10px!important;
+  color:#101828!important;
+  font-size:22px!important;
+  letter-spacing:-.035em!important;
+}
+.comboDisciplineBlock{
+  margin-bottom:18px;
+}
+.comboDisciplineBlock .taskItem,
+.comboDisciplineBlock .taskRow,
+.comboDisciplineBlock .task{
+  margin-bottom:10px;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -2364,6 +2381,216 @@ init();
   };
 
   setTimeout(applyComboCheckboxLogic, 100);
+})();
+</script>
+
+
+<script>
+/* ===== FIX DEFINITIVO COMBO COMPLETO EM TAREFAS ===== */
+(function(){
+  const COMBO_DISCIPLINES_FIX = ['Arquitetônico','Estrutural','Hidrossanitário','Elétrico'];
+
+  function isComboBudgetFix(b){
+    return !!(b && Array.isArray(b.projetos) && b.projetos.includes('Combo Completo'));
+  }
+
+  function comboTaskTypesFix(b){
+    if(!b) return ['Geral'];
+    if(isComboBudgetFix(b)) return COMBO_DISCIPLINES_FIX;
+    return Array.isArray(b.projetos) && b.projetos.length ? b.projetos : ['Geral'];
+  }
+
+  function taskTemplateFix(tipo){
+    if(typeof JM_TASK_TEMPLATES !== 'undefined' && JM_TASK_TEMPLATES){
+      return JM_TASK_TEMPLATES[tipo] || JM_TASK_TEMPLATES.Geral || [];
+    }
+    return [
+      ['Levantamento','Conferir informações iniciais'],
+      ['Desenvolvimento','Desenvolver desenho técnico'],
+      ['Conferência','Revisar prancha'],
+      ['Entrega','Gerar PDF final']
+    ];
+  }
+
+  // Criação correta: Combo Completo nunca gera tarefa "Combo Completo"; gera disciplinas.
+  window.createAutoTasksForProject = function(projectId, silent=false){
+    const b = state.budgets.find(x=>x.id===projectId);
+    if(!b) return 0;
+
+    let created = 0;
+    comboTaskTypesFix(b).forEach(tipo=>{
+      const tpl = taskTemplateFix(tipo);
+
+      tpl.forEach(([fase, etapa], idx)=>{
+        const exists = state.tasks.some(t=>t.projectId===projectId && t.tipo===tipo && t.etapa===etapa);
+        if(!exists){
+          state.tasks.push({
+            id: uid(),
+            projectId,
+            tipo,
+            etapa,
+            fase,
+            resp:'João Miguel',
+            prio:idx<3?'Média':'Baixa',
+            status:'Não iniciada',
+            prazo:b.entrega||'',
+            obs:'Tarefa criada automaticamente.'
+          });
+          created++;
+        }
+      });
+    });
+
+    if(created && !silent) toastMsg(created+' tarefa(s) criadas automaticamente.');
+    return created;
+  };
+
+  // Migra tarefas antigas que ficaram como tipo "Combo Completo".
+  function migrateComboTasksFix(projectId){
+    const b = state.budgets.find(x=>x.id===projectId);
+    if(!isComboBudgetFix(b)) return false;
+
+    const bad = state.tasks.filter(t=>t.projectId===projectId && t.tipo==='Combo Completo');
+    if(!bad.length) return false;
+
+    // Remove tarefas genéricas do Combo e recria separadas por disciplina.
+    state.tasks = state.tasks.filter(t=>!(t.projectId===projectId && t.tipo==='Combo Completo'));
+    createAutoTasksForProject(projectId, true);
+    save();
+    return true;
+  }
+
+  // Refechar/gerar tarefas para combo mantém disciplinas.
+  const oldCloseBudgetComboFix = window.closeBudget;
+  window.closeBudget = function(id){
+    const b = state.budgets.find(x=>x.id===id);
+    if(!b){
+      if(oldCloseBudgetComboFix) return oldCloseBudgetComboFix(id);
+      return;
+    }
+    b.status='Fechado';
+    b.projectStatus=b.projectStatus||'Ativo';
+    b.startDate=b.startDate||today();
+    state.selectedProject=id;
+    createAutoTasksForProject(id,true);
+    save();
+    toastMsg('Fechado! Tarefas separadas por disciplina.');
+    go('projetos');
+  };
+
+  // Renderização: deixa os filtros iguais ao projeto com várias disciplinas.
+  const oldRenderTasksComboFix = window.renderTasks;
+  if(typeof oldRenderTasksComboFix === 'function'){
+    window.renderTasks = function(){
+      oldRenderTasksComboFix();
+
+      const pid = state.selectedProject;
+      const b = state.budgets.find(x=>x.id===pid);
+      if(!isComboBudgetFix(b)) return;
+
+      migrateComboTasksFix(pid);
+
+      const types = comboTaskTypesFix(b);
+      const currentType = state.selectedType || 'Todos';
+
+      // Corrige botões de filtro: tira "Combo Completo" e coloca disciplinas.
+      const filterHost = document.getElementById('typeFilters');
+      if(filterHost){
+        filterHost.innerHTML = `
+          <div class="filterBar">
+            ${['Todos', ...types, 'Geral'].map(t=>`
+              <button class="${currentType===t?'active':''}" onclick="state.selectedType='${t}';save();renderTasks()">${t}</button>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      const list = document.getElementById('tasksList');
+      if(!list) return;
+
+      // Se usuário clicou em uma disciplina, mostra como já mostrava no projeto normal.
+      if(currentType !== 'Todos'){
+        const filtered = state.tasks.filter(t=>t.projectId===pid && t.tipo===currentType);
+        if(filtered.length){
+          list.innerHTML = `
+            <h3 class="comboDisciplineHeader">${currentType}</h3>
+            ${filtered.map(t=>taskRowHtmlFix(t)).join('')}
+          `;
+        }else{
+          list.innerHTML = `<p class="muted">Sem tarefas em ${currentType}.</p>`;
+        }
+        return;
+      }
+
+      // Em "Todos": divide por disciplina, com título de cada uma.
+      const html = types.map(tipo=>{
+        const tasks = state.tasks.filter(t=>t.projectId===pid && t.tipo===tipo);
+        if(!tasks.length) return '';
+        const done = tasks.filter(t=>t.status==='Concluída').length;
+        return `
+          <div class="comboDisciplineBlock">
+            <h3 class="comboDisciplineHeader">${tipo} <span class="comboTaskCount">${done}/${tasks.length}</span></h3>
+            ${tasks.map(t=>taskRowHtmlFix(t)).join('')}
+          </div>
+        `;
+      }).join('');
+
+      list.innerHTML = html || '<p class="muted">Sem tarefas. Clique em criar tarefas automáticas.</p>';
+    };
+  }
+
+  function taskRowHtmlFix(t){
+    // Usa funções originais se existirem.
+    const statusBtns = `
+      <div class="btns">
+        <button class="btn" onclick="setTaskStatus('${t.id}','Em andamento')">Andamento</button>
+        <button class="btn green" onclick="setTaskStatus('${t.id}','Concluída')">Concluir</button>
+        <button class="btn red" onclick="deleteTask('${t.id}')">Apagar</button>
+      </div>
+    `;
+
+    return `
+      <div class="taskItem">
+        <div>
+          <b>${t.etapa}</b>
+          <div class="mini">${t.fase||'-'} • ${t.status||'Não iniciada'}</div>
+        </div>
+        ${statusBtns}
+      </div>
+    `;
+  }
+
+  // Orçamento: se marcar Combo Completo, desmarca os demais; se marcar outro, desmarca Combo.
+  function applyComboCheckboxLogicFix(){
+    const checks = [...document.querySelectorAll('input[type="checkbox"][value]')];
+    const combo = checks.find(c=>c.value==='Combo Completo');
+    if(!combo) return;
+
+    checks.forEach(ch=>{
+      if(ch.dataset.comboFixApplied) return;
+      ch.dataset.comboFixApplied='1';
+
+      ch.addEventListener('change', ()=>{
+        if(ch.value==='Combo Completo' && ch.checked){
+          checks.forEach(other=>{
+            if(other!==ch) other.checked=false;
+          });
+        }
+        if(ch.value!=='Combo Completo' && ch.checked && combo.checked){
+          combo.checked=false;
+        }
+        if(typeof updateCalc==='function') updateCalc();
+      });
+    });
+  }
+
+  const oldRenderAllComboFix = window.renderAll;
+  window.renderAll = function(){
+    oldRenderAllComboFix();
+    setTimeout(applyComboCheckboxLogicFix, 30);
+  };
+
+  setTimeout(applyComboCheckboxLogicFix, 100);
 })();
 </script>
 
