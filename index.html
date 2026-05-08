@@ -4151,20 +4151,93 @@ init();
 </script>
 
 
-<!-- ===== JM CONTRATO BOTAO FINAL — correção direta e isolada ===== -->
+<!-- ===== JM ABA CONTRATOS ESTAVEL ===== -->
+<style>
+.contractsToolbar{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:0 0 16px;
+}
+.contractsToolbar button{
+  border:1px solid var(--line);
+  background:#16263b;
+  color:#dbeafe;
+  border-radius:999px;
+  padding:9px 12px;
+  font-weight:800;
+  cursor:pointer;
+}
+.contractsToolbar button.active{
+  background:linear-gradient(135deg,var(--gold),#f8d982);
+  color:#101827;
+  border-color:var(--gold);
+}
+.contractsGrid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+}
+.contractCard{
+  border:1px solid var(--line);
+  background:rgba(15,27,45,.58);
+  border-radius:18px;
+  padding:16px;
+}
+.contractCardTop{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+}
+.contractCard h4{
+  margin:0 0 6px;
+  font-size:17px;
+}
+.contractMeta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin:10px 0 14px;
+}
+.contractMeta span{
+  display:inline-flex;
+  border-radius:999px;
+  padding:6px 9px;
+  background:rgba(96,165,250,.16);
+  color:#dbeafe;
+  border:1px solid rgba(96,165,250,.30);
+  font-size:11px;
+  font-weight:800;
+}
+@media(max-width:900px){
+  .contractsGrid{grid-template-columns:1fr}
+}
+</style>
+
 <script>
 (function(){
+
   function todayIsoJM(){
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
+  function brDateJM(iso){
+    const p = String(iso || '').split('-');
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : '';
+  }
+
+  function escJM(v){
+    return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
   function saveJM(){
     try{
       if(typeof save === 'function') save();
-      else if(window.state) localStorage.setItem('jmNetoEngenhariaState', JSON.stringify(window.state));
+      else localStorage.setItem('jm_v15_online_backup', JSON.stringify(window.state || {}));
     }catch(e){
-      console.error('Erro ao salvar contrato:', e);
+      console.error(e);
     }
   }
 
@@ -4174,17 +4247,135 @@ init();
       : null;
   }
 
-  // Neste ponto do arquivo, openContract já é a função que realmente monta/mostra o contrato.
-  // Guardamos ela e depois substituímos openContract pelo fluxo Criar/Ver.
-  if(typeof window.openContract === 'function' && !window.__jmRenderContractFinal){
-    window.__jmRenderContractFinal = window.openContract;
+  function projectNamesJM(b){
+    const arr = Array.isArray(b?.projetos) ? b.projetos : [];
+    if(arr.some(p => String(p).toLowerCase().includes('combo'))){
+      return ['Projeto Arquitetônico','Projeto Estrutural','Projeto Elétrico','Projeto Hidrossanitário'];
+    }
+    return arr.map(p => {
+      const s = String(p || '').replace(/^Projeto\s+/i,'').trim();
+      if(!s) return '';
+      return 'Projeto ' + s;
+    }).filter(Boolean);
   }
 
-  window.createContractJM = function(id){
+  function projectTextJM(b){
+    const ps = projectNamesJM(b);
+    if(ps.length <= 1) return ps[0] || 'Projeto técnico';
+    return ps.slice(0,-1).join(', ') + ' e ' + ps[ps.length-1];
+  }
+
+  function hasProjectJM(b, filter){
+    if(filter === 'Todos') return true;
+    const raw = (b.projetos || []).join(' ').toLowerCase();
+    if(filter === 'Combo completo') return raw.includes('combo');
+    return projectNamesJM(b).some(p => p.toLowerCase().includes(filter.toLowerCase()));
+  }
+
+  // guarda a função que realmente abre/renderiza o contrato atual do seu arquivo.
+  if(typeof window.openContract === 'function' && !window.__jmRenderContractFromContractsTab){
+    window.__jmRenderContractFromContractsTab = window.openContract;
+  }
+
+  function ensureContractsSectionJM(){
+    if(document.getElementById('contratos')) return;
+
+    const sec = document.createElement('section');
+    sec.id = 'contratos';
+    sec.className = 'section';
+    sec.innerHTML = `
+      <div class="card">
+        <div class="btns" style="justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+          <div>
+            <h3>Contratos</h3>
+            <p class="muted">Contratos criados a partir dos orçamentos. Clique em abrir para gerar o PDF.</p>
+          </div>
+        </div>
+        <div class="contractsToolbar" id="contractFilters"></div>
+        <div id="contractsRows"></div>
+      </div>`;
+
+    const proposta = document.getElementById('proposta');
+    if(proposta && proposta.parentNode) proposta.parentNode.insertBefore(sec, proposta);
+    else document.querySelector('main')?.appendChild(sec);
+  }
+
+  function ensureContractsNavJM(){
+    if(!Array.isArray(window.pages)) return;
+
+    if(!window.pages.some(p => p[0] === 'contratos')){
+      const idx = window.pages.findIndex(p => p[0] === 'projetos');
+      const item = ['contratos','Contratos','Contratos criados e prontos para abrir.'];
+      if(idx >= 0) window.pages.splice(idx+1,0,item);
+      else window.pages.push(item);
+    }
+
+    const nav = document.getElementById('nav');
+    if(nav && !document.getElementById('nav_contratos')){
+      const btn = document.createElement('button');
+      btn.id = 'nav_contratos';
+      btn.setAttribute('onclick',"go('contratos')");
+      btn.textContent = 'Contratos';
+      const ref = document.getElementById('nav_projetos');
+      if(ref && ref.parentNode) ref.parentNode.insertBefore(btn, ref.nextSibling);
+      else nav.appendChild(btn);
+    }
+  }
+
+  window.renderContractsJM = function(){
+    ensureContractsSectionJM();
+    ensureContractsNavJM();
+
+    const wrap = document.getElementById('contractsRows');
+    const filters = document.getElementById('contractFilters');
+    if(!wrap || !filters) return;
+
+    const selected = window.state.contractFilter || 'Todos';
+    const options = ['Todos','Arquitetônico','Estrutural','Elétrico','Hidrossanitário','Combo completo'];
+
+    filters.innerHTML = options.map(o =>
+      `<button class="${selected===o?'active':''}" onclick="state.contractFilter='${o}';saveJM();renderContractsJM()">${o}</button>`
+    ).join('');
+
+    const contracts = (window.state.budgets || [])
+      .filter(b => b.contractCreatedAt)
+      .filter(b => hasProjectJM(b, selected));
+
+    if(!contracts.length){
+      wrap.innerHTML = `<div class="emptyState">Nenhum contrato criado nesta categoria.</div>`;
+      return;
+    }
+
+    wrap.innerHTML = `<div class="contractsGrid">` + contracts.map(b => {
+      const c = typeof calcFrom === 'function' ? calcFrom(b) : {final:0};
+      const valor = typeof money === 'function' ? money(c.final || 0) : c.final || '';
+      const data = brDateJM(b.contractCreatedAt);
+      return `
+        <div class="contractCard">
+          <div class="contractCardTop">
+            <div>
+              <h4>${escJM(b.cliente || 'Cliente')}</h4>
+              <p class="muted" style="margin:0">${escJM(projectTextJM(b))}</p>
+            </div>
+            <span class="pill ok">Criado</span>
+          </div>
+          <div class="contractMeta">
+            <span>${escJM(data || 'Sem data')}</span>
+            <span>${escJM(valor)}</span>
+            <span>${escJM(b.cidade || 'Cidade não informada')}</span>
+          </div>
+          <div class="btns">
+            <button class="btn primary" onclick="viewContractFromTabJM('${escJM(b.id)}')">Abrir contrato</button>
+            <button class="btn" onclick="openProposal('${escJM(b.id)}')">Ver proposta</button>
+          </div>
+        </div>`;
+    }).join('') + `</div>`;
+  };
+
+  window.createContractAndGoJM = function(id){
     const b = getBudgetJM(id);
     if(!b){
       if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
-      else alert('Orçamento não encontrado.');
       return;
     }
 
@@ -4192,121 +4383,118 @@ init();
       b.contractCreatedAt = todayIsoJM();
       b.contractLocked = true;
       saveJM();
+    }else{
+      if(typeof save === 'function') save();
     }
 
-    if(typeof renderBudgets === 'function'){
-      renderBudgets();
-    }
+    ensureContractsSectionJM();
+    ensureContractsNavJM();
 
-    if(typeof toastMsg === 'function') toastMsg('Contrato criado. Agora clique em “Ver contrato”.');
-    else alert('Contrato criado. Agora clique em “Ver contrato”.');
+    if(typeof renderBudgets === 'function') renderBudgets();
+    window.renderContractsJM();
+
+    if(typeof go === 'function') go('contratos');
+
+    if(typeof toastMsg === 'function') toastMsg('Contrato criado e enviado para a aba Contratos.');
   };
 
-  window.viewContractJM = function(id){
+  window.viewContractFromTabJM = function(id){
     const b = getBudgetJM(id);
     if(!b){
-      if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
-      else alert('Orçamento não encontrado.');
+      if(typeof toastMsg === 'function') toastMsg('Contrato não encontrado.');
       return;
     }
 
-    if(!b.contractCreatedAt){
-      if(typeof toastMsg === 'function') toastMsg('Crie o contrato primeiro.');
-      else alert('Crie o contrato primeiro.');
-      return;
-    }
-
-    if(typeof window.__jmRenderContractFinal === 'function'){
-      window.__jmRenderContractFinal(id);
+    if(typeof window.__jmRenderContractFromContractsTab === 'function'){
+      window.__jmRenderContractFromContractsTab(id);
     }else{
       if(typeof toastMsg === 'function') toastMsg('Erro ao abrir contrato.');
-      else alert('Erro ao abrir contrato.');
     }
+
+    setTimeout(function(){
+      const root = document.getElementById('proposalPrint');
+      if(!root || !b.contractCreatedAt) return;
+      const data = brDateJM(b.contractCreatedAt);
+      root.innerHTML = root.innerHTML.replace(
+        /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
+        `Luís Eduardo Magalhães/BA, ${data}.`
+      );
+    }, 100);
   };
 
-  // Mantém compatibilidade: qualquer chamada antiga para openContract segue o fluxo correto.
-  window.openContract = function(id){
-    const b = getBudgetJM(id);
-    if(b && b.contractCreatedAt) return window.viewContractJM(id);
-    return window.createContractJM(id);
-  };
+  function installBudgetButtonJM(){
+    if(typeof window.budgetRow !== 'function' || window.__jmContractsBudgetRowInstalled) return;
+    window.__jmContractsBudgetRowInstalled = true;
 
-  function escArgJM(value){
-    return String(value ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  }
+    const oldBudgetRow = window.budgetRow;
 
-  function makeBudgetRowJM(b, archived=false){
-    const c = typeof calcFrom === 'function' ? calcFrom(b) : {final:0, ps:b.projetos || []};
-    const st = b.status || 'Aberto';
+    window.budgetRow = function(b, archived=false){
+      let row = oldBudgetRow.call(this,b,archived);
 
-    const statusClass = st === 'Fechado'
-      ? (typeof projectStatusInfo === 'function' ? projectStatusInfo(b).cls : 'ok')
-      : st === 'Perdido'
-        ? 'bad'
-        : 'blue';
+      const label = b.contractCreatedAt ? 'Ver na aba Contratos' : 'Criar contrato';
+      const btn = `<button class="btn primary" onclick="createContractAndGoJM('${escJM(b.id)}')">${label}</button>`;
 
-    const statusText = st === 'Fechado'
-      ? (typeof projectStatusInfo === 'function' ? projectStatusInfo(b).txt : 'Fechado')
-      : st;
+      if(row.includes('openProposal(')){
+        row = row.replace(/(<button class="btn" onclick="openProposal\('[^']+'\)">Proposta<\/button>)/, `$1${btn}`);
+      }else{
+        row = row.replace('</div></td></tr>', `${btn}</div></td></tr>`);
+      }
 
-    const acts = st === 'Fechado'
-      ? '<span class="pill ok">Em projetos</span>'
-      : st === 'Perdido'
-        ? '<span class="pill bad">Perdido</span>'
-        : `<button class="btn green" onclick="closeBudget('${escArgJM(b.id)}')">Fechar</button><button class="btn red" onclick="lostBudget('${escArgJM(b.id)}')">Perdido</button>`;
-
-    const contractButton = b.contractCreatedAt
-      ? `<button class="btn primary" onclick="viewContractJM('${escArgJM(b.id)}')">Ver contrato</button>`
-      : `<button class="btn primary" onclick="createContractJM('${escArgJM(b.id)}')">Criar contrato</button>`;
-
-    const projetos = Array.isArray(b.projetos) ? b.projetos.join(', ') : '';
-    const valor = typeof money === 'function' ? money(c.final || 0) : (c.final || 0);
-    const clienteSafe = typeof safeArg === 'function' ? safeArg(b.cliente) : escArgJM(b.cliente);
-
-    return `<tr class="${archived?'budgetArchived':''}">
-      <td><b>${b.cliente || ''}</b><br><span class="muted">${b.telefone || ''} ${b.cidade ? '• '+b.cidade : ''}</span><br><span class="mini">${b.endereco || ''}</span></td>
-      <td>${projetos}</td>
-      <td><span class="areaNowrap">${b.area || 0}m²</span></td>
-      <td>${valor}</td>
-      <td><span class="pill ${statusClass}">${statusText}</span></td>
-      <td><div class="btns">
-        <button class="btn" onclick="editBudget('${escArgJM(b.id)}')">Editar</button>
-        <button class="btn" onclick="openProposal('${escArgJM(b.id)}')">Proposta</button>
-        ${contractButton}
-        <button class="btn" onclick="showClientHistory('${clienteSafe}')">Histórico</button>
-        <button class="btn" onclick="duplicateBudget('${escArgJM(b.id)}')">Duplicar</button>
-        ${acts}
-        <button class="btn red" onclick="delBudget('${escArgJM(b.id)}')">Apagar</button>
-      </div></td>
-    </tr>`;
-  }
-
-  // Esta é a parte importante: a função final que o renderBudgets usa.
-  window.budgetRow = makeBudgetRowJM;
-  budgetRow = makeBudgetRowJM;
-
-  // Envolve renderBudgets apenas para garantir que a função final continue sendo usada.
-  if(typeof window.renderBudgets === 'function' && !window.__jmRenderBudgetFinalWrapped){
-    window.__jmRenderBudgetFinalWrapped = true;
-    const oldRenderBudgetsJM = window.renderBudgets;
-    window.renderBudgets = function(){
-      window.budgetRow = makeBudgetRowJM;
-      budgetRow = makeBudgetRowJM;
-      return oldRenderBudgetsJM.apply(this, arguments);
+      return row;
     };
-    renderBudgets = window.renderBudgets;
+
+    try{ budgetRow = window.budgetRow; }catch(e){}
   }
 
-  // Re-renderiza a tela atual com o botão correto.
+  const oldRenderAllJM = window.renderAll;
+  if(typeof oldRenderAllJM === 'function' && !window.__jmContractsRenderAllWrapped){
+    window.__jmContractsRenderAllWrapped = true;
+    window.renderAll = function(){
+      ensureContractsSectionJM();
+      ensureContractsNavJM();
+      installBudgetButtonJM();
+      const r = oldRenderAllJM.apply(this, arguments);
+      setTimeout(function(){
+        ensureContractsSectionJM();
+        ensureContractsNavJM();
+        installBudgetButtonJM();
+        window.renderContractsJM();
+      }, 50);
+      return r;
+    };
+    try{ renderAll = window.renderAll; }catch(e){}
+  }
+
+  const oldGoJM = window.go;
+  if(typeof oldGoJM === 'function' && !window.__jmContractsGoWrapped){
+    window.__jmContractsGoWrapped = true;
+    window.go = function(p){
+      ensureContractsSectionJM();
+      ensureContractsNavJM();
+      installBudgetButtonJM();
+      const r = oldGoJM.apply(this, arguments);
+      if(p === 'contratos') window.renderContractsJM();
+      return r;
+    };
+    try{ go = window.go; }catch(e){}
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    ensureContractsSectionJM();
+    ensureContractsNavJM();
+    installBudgetButtonJM();
+    if(typeof renderBudgets === 'function') renderBudgets();
+    window.renderContractsJM();
+  });
+
   setTimeout(function(){
-    try{
-      window.budgetRow = makeBudgetRowJM;
-      budgetRow = makeBudgetRowJM;
-      if(typeof renderBudgets === 'function') renderBudgets();
-    }catch(e){
-      console.error('Erro ao atualizar botões de contrato:', e);
-    }
-  }, 150);
+    ensureContractsSectionJM();
+    ensureContractsNavJM();
+    installBudgetButtonJM();
+    if(typeof renderBudgets === 'function') renderBudgets();
+    window.renderContractsJM();
+  }, 300);
+
 })();
 </script>
 
