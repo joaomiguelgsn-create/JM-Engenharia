@@ -4151,96 +4151,95 @@ init();
 </script>
 
 
-<!-- ===== PATCH CONTRATO DEFINITIVO ===== -->
+<!-- ===== PATCH FINAL CONTRATO JM DEFINITIVO v2 ===== -->
 <script>
 (function(){
-
-function saveStateSafe(){
-  try{
-    if(typeof save === 'function') save();
-    else localStorage.setItem('jmNetoEngenhariaState', JSON.stringify(window.state || {}));
-  }catch(e){}
-}
-
-function todayIso(){
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-
-function brFromIso(iso){
-  const p = String(iso || '').split('-');
-  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : new Date().toLocaleDateString('pt-BR');
-}
-
-function budgetById(id){
-  return (window.state?.budgets || []).find(x => String(x.id) === String(id));
-}
-
-// guarda a função original que desenha o contrato
-if(typeof window.openContract === 'function' && !window._jmOriginalOpenContract){
-  window._jmOriginalOpenContract = window.openContract;
-}
-
-window.createContractJM = function(id){
-  const b = budgetById(id);
-  if(!b){
-    if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
-    return;
+  function todayIsoJM(){
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
-  if(!b.contractCreatedAt){
-    b.contractCreatedAt = todayIso();
-    b.contractLocked = true;
-    saveStateSafe();
+  function brFromIsoJM(iso){
+    const p = String(iso || '').split('-');
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : new Date().toLocaleDateString('pt-BR');
   }
 
-  if(typeof renderBudgets === 'function') renderBudgets();
-
-  if(typeof toastMsg === 'function') toastMsg('Contrato criado. Agora clique em “Ver contrato”.');
-  else alert('Contrato criado. Agora clique em “Ver contrato”.');
-};
-
-window.viewContractJM = function(id){
-  const b = budgetById(id);
-  if(!b){
-    if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
-    return;
+  function getBudgetJM(id){
+    return (window.state && Array.isArray(state.budgets) ? state.budgets : []).find(b => String(b.id) === String(id));
   }
 
-  if(!b.contractCreatedAt){
-    if(typeof toastMsg === 'function') toastMsg('Clique primeiro em “Criar contrato”.');
-    else alert('Clique primeiro em “Criar contrato”.');
-    return;
+  function saveJM(){
+    try{
+      if(typeof save === 'function') save();
+      else localStorage.setItem('jm_v15_online_backup', JSON.stringify(window.state || {}));
+    }catch(e){ console.error(e); }
   }
 
-  if(typeof window._jmOriginalOpenContract === 'function'){
-    window._jmOriginalOpenContract(id);
-  }else{
-    if(typeof toastMsg === 'function') toastMsg('Erro ao abrir contrato.');
-    return;
+  // Guarda a função que realmente desenha o contrato, depois de todos os scripts do arquivo terem carregado.
+  if(typeof window.openContract === 'function'){
+    window.openContractOriginalJM = window.openContract;
   }
 
-  setTimeout(function(){
-    const root = document.getElementById('proposalPrint');
-    if(!root) return;
+  window.createContractJM = function(id){
+    const b = getBudgetJM(id);
+    if(!b){
+      if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
+      else alert('Orçamento não encontrado.');
+      return;
+    }
 
-    const data = brFromIso(b.contractCreatedAt);
+    if(!b.contractCreatedAt){
+      b.contractCreatedAt = todayIsoJM();
+      b.contractLocked = true;
+    }
 
-    root.innerHTML = root.innerHTML.replace(
-      /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
-      `Luís Eduardo Magalhães/BA, ${data}.`
-    );
-  }, 80);
-};
+    saveJM();
 
-// sobrescreve budgetRow DEPOIS que o sistema carregou.
-// Aqui o botão já nasce certo, sem depender de troca posterior.
-function installBudgetRowPatch(){
-  if(typeof window.budgetRow !== 'function') return false;
-  if(window._jmBudgetRowPatched) return true;
+    if(typeof toastMsg === 'function') toastMsg('Contrato criado. Agora clique em “Ver contrato”.');
+    else alert('Contrato criado. Agora clique em “Ver contrato”.');
+  };
 
-  window._jmBudgetRowPatched = true;
+  window.viewContractJM = function(id){
+    const b = getBudgetJM(id);
+    if(!b){
+      if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
+      else alert('Orçamento não encontrado.');
+      return;
+    }
 
+    if(!b.contractCreatedAt){
+      if(typeof toastMsg === 'function') toastMsg('Clique primeiro em “Criar contrato”.');
+      else alert('Clique primeiro em “Criar contrato”.');
+      return;
+    }
+
+    if(typeof window.openContractOriginalJM === 'function'){
+      window.openContractOriginalJM(id);
+    }else{
+      if(typeof toastMsg === 'function') toastMsg('Erro ao abrir contrato.');
+      else alert('Erro ao abrir contrato.');
+      return;
+    }
+
+    setTimeout(function(){
+      const root = document.getElementById('proposalPrint');
+      if(!root) return;
+      const data = brFromIsoJM(b.contractCreatedAt);
+      root.innerHTML = root.innerHTML.replace(
+        /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
+        `Luís Eduardo Magalhães/BA, ${data}.`
+      );
+    }, 80);
+  };
+
+  // openContract vira uma rota segura: se não existe, cria; se existe, abre.
+  window.openContract = function(id){
+    const b = getBudgetJM(id);
+    if(b && b.contractCreatedAt) return window.viewContractJM(id);
+    return window.createContractJM(id);
+  };
+
+  // Esta é a correção principal: a linha do orçamento já nasce com o botão correto.
   window.budgetRow = function(b, archived=false){
     const c = calcFrom(b);
     const st = b.status || 'Aberto';
@@ -4265,17 +4264,20 @@ function installBudgetRowPatch(){
       ? `<button class="btn primary" onclick="viewContractJM('${b.id}')">Ver contrato</button>`
       : `<button class="btn primary" onclick="createContractJM('${b.id}')">Criar contrato</button>`;
 
+    const projetos = (b.projetos || []).join(', ');
+    const clienteSafe = typeof safeArg === 'function' ? safeArg(b.cliente || '') : String(b.cliente || '').replace(/'/g, "\\'");
+
     return `<tr class="${archived?'budgetArchived':''}">
       <td><b>${b.cliente || ''}</b><br><span class="muted">${b.telefone || ''} ${b.cidade ? '• '+b.cidade : ''}</span><br><span class="mini">${b.endereco || ''}</span></td>
-      <td>${(b.projetos || []).join(', ')}</td>
+      <td>${projetos}</td>
       <td><span class="areaNowrap">${b.area || 0}m²</span></td>
-      <td>${money(c.final)}</td>
+      <td>${money(c.final)}<br><span class="mini">${b.paymentMethod || 'À vista'}</span></td>
       <td><span class="pill ${statusClass}">${statusText}</span></td>
       <td><div class="btns">
         <button class="btn" onclick="editBudget('${b.id}')">Editar</button>
         <button class="btn" onclick="openProposal('${b.id}')">Proposta</button>
         ${contractButton}
-        <button class="btn" onclick="showClientHistory('${safeArg(b.cliente)}')">Histórico</button>
+        <button class="btn" onclick="showClientHistory('${clienteSafe}')">Histórico</button>
         <button class="btn" onclick="duplicateBudget('${b.id}')">Duplicar</button>
         ${acts}
         <button class="btn red" onclick="delBudget('${b.id}')">Apagar</button>
@@ -4283,30 +4285,10 @@ function installBudgetRowPatch(){
     </tr>`;
   };
 
-  return true;
-}
-
-function rerender(){
-  installBudgetRowPatch();
-  if(typeof renderBudgets === 'function') renderBudgets();
-}
-
-const oldInitJM = window.init;
-if(typeof oldInitJM === 'function' && !window._jmInitWrapped){
-  window._jmInitWrapped = true;
-  window.init = function(){
-    const r = oldInitJM.apply(this, arguments);
-    setTimeout(rerender, 100);
-    return r;
-  };
-}
-
-document.addEventListener('DOMContentLoaded', function(){
-  setTimeout(rerender, 200);
-});
-
-setTimeout(rerender, 500);
-
+  // Força redesenhar a tabela usando a budgetRow corrigida.
+  setTimeout(function(){
+    if(typeof renderBudgets === 'function') renderBudgets();
+  }, 100);
 })();
 </script>
 
