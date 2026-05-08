@@ -4617,4 +4617,224 @@ init();
 })();
 </script>
 
+
+<!-- ===== V58 JM NETO — desconto combo automático + Ver contrato corrigido ===== -->
+<script id="jm-v58-desconto-combo-ver-contrato">
+(function(){
+  function norm(s){
+    return String(s||'')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'')
+      .toLowerCase()
+      .trim();
+  }
+
+  function moneySafe(v){
+    if(typeof money === 'function') return money(v);
+    return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  }
+
+  function todayIso(){
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function saveStateSafe(){
+    try{
+      if(typeof save === 'function') save();
+      else localStorage.setItem('jmNetoEngenhariaState', JSON.stringify(window.state || {}));
+    }catch(e){}
+  }
+
+  function budgetById(id){
+    return (window.state?.budgets || []).find(x => String(x.id) === String(id));
+  }
+
+  function isCombo(p){
+    return norm(p).includes('combo');
+  }
+
+  const FULL_PROJECTS = ['Arquitetônico','Estrutural','Elétrico','Hidrossanitário'];
+
+  function realProjects(b){
+    const projetos = Array.isArray(b?.projetos) ? b.projetos : [];
+    if(projetos.some(isCombo)) return FULL_PROJECTS.slice();
+    return projetos.filter(p => !isCombo(p));
+  }
+
+  function comboDiscountRate(b){
+    const qtd = realProjects(b).length;
+    const full = (Array.isArray(b?.projetos) ? b.projetos : []).some(isCombo);
+
+    if(full) return 0.10;
+    if(qtd === 3) return 0.05;
+    if(qtd === 2) return 0.025;
+    return 0;
+  }
+
+  // Salva a função renderizadora REAL do contrato antes de novas rotas.
+  // A V53 é a que realmente desenha o contrato bonito.
+  const renderContractReal =
+    window.__openContractRenderOnly ||
+    window.openContract;
+
+  if(typeof renderContractReal === 'function'){
+    window.__renderContractRealV58 = renderContractReal;
+  }
+
+  // Corrige cálculo e expõe o valor automático do desconto combo.
+  const oldCalc = window.calcFrom;
+  if(typeof oldCalc === 'function'){
+    window.calcFrom = function(b){
+      const c = oldCalc.apply(this, arguments);
+
+      try{
+        const rate = comboDiscountRate(b);
+
+        // Se for combo completo, recalcula como 4 separados e depois aplica 10%.
+        let base = c;
+        if((Array.isArray(b?.projetos) ? b.projetos : []).some(isCombo)){
+          const cloned = {...b, projetos: FULL_PROJECTS.slice()};
+          base = oldCalc.call(this, cloned);
+        }
+
+        const baseFinal = Number(base.final || c.final || 0);
+        const finalComCombo = Math.round(baseFinal * (1 - rate) * 100) / 100;
+
+        c.final = finalComCombo;
+        c.comboDiscountRate = rate;
+        c.comboDiscountValue = Math.max(0, Math.round((baseFinal - finalComCombo) * 100) / 100);
+        c.comboBaseValue = baseFinal;
+      }catch(err){
+        console.error('Erro ao calcular desconto combo automático:', err);
+      }
+
+      return c;
+    };
+  }
+
+  // Garante que o desconto apareça automaticamente na proposta, se houver.
+  const oldProposalTemp = window.proposalTemp;
+  if(typeof oldProposalTemp === 'function'){
+    window.proposalTemp = function(b){
+      const result = oldProposalTemp.apply(this, arguments);
+
+      setTimeout(()=>{
+        try{
+          const root = document.getElementById('proposalPrint');
+          if(!root) return;
+
+          const c = typeof calcFrom === 'function' ? calcFrom(b) : null;
+          const desconto = Number(c?.comboDiscountValue || 0);
+          const rate = Number(c?.comboDiscountRate || 0);
+
+          root.querySelectorAll('.comboDiscountLineV58').forEach(el=>el.remove());
+
+          if(desconto > 0){
+            const ref = [...root.querySelectorAll('.proposalServiceItem')]
+              .find(el => (el.textContent||'').toLowerCase().includes('condição comercial'));
+
+            const line = document.createElement('div');
+            line.className = 'proposalServiceItem comboDiscountLineV58';
+            line.innerHTML = `<div><b>Desconto combo</b><br><span class="mini">Aplicado automaticamente por contratação conjunta de projetos (${(rate*100).toFixed(1).replace('.',',')}%).</span></div><strong>-${moneySafe(desconto)}</strong>`;
+
+            if(ref) ref.insertAdjacentElement('afterend', line);
+          }
+        }catch(err){
+          console.error(err);
+        }
+      }, 100);
+
+      return result;
+    };
+  }
+
+  function setContractButtons(){
+    document.querySelectorAll('button,.btn,a').forEach(btn=>{
+      const onclick = btn.getAttribute('onclick') || '';
+      const match = onclick.match(/(?:openContract|createContract|viewContract)\(['"]?([^'")]+)['"]?\)/);
+      if(!match) return;
+
+      const id = match[1];
+      const b = budgetById(id);
+      if(!b) return;
+
+      if(b.contractCreatedAt){
+        btn.textContent = 'Ver contrato';
+        btn.setAttribute('onclick', `viewContract('${id}')`);
+      }else{
+        btn.textContent = 'Criar contrato';
+        btn.setAttribute('onclick', `createContract('${id}')`);
+      }
+    });
+  }
+
+  window.createContract = function(id){
+    const b = budgetById(id);
+    if(!b){
+      if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
+      else alert('Orçamento não encontrado.');
+      return;
+    }
+
+    if(!b.contractCreatedAt){
+      b.contractCreatedAt = todayIso();
+      b.contractLocked = true;
+      saveStateSafe();
+    }
+
+    if(typeof renderBudgets === 'function') renderBudgets();
+    setTimeout(setContractButtons, 100);
+
+    if(typeof toastMsg === 'function') toastMsg('Contrato criado. Agora clique em “Ver contrato”.');
+    else alert('Contrato criado. Agora clique em “Ver contrato”.');
+  };
+
+  window.viewContract = function(id){
+    const b = budgetById(id);
+    if(!b){
+      if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
+      else alert('Orçamento não encontrado.');
+      return;
+    }
+
+    if(!b.contractCreatedAt){
+      if(typeof toastMsg === 'function') toastMsg('Clique em “Criar contrato” primeiro.');
+      else alert('Clique em “Criar contrato” primeiro.');
+      return;
+    }
+
+    const render = window.__renderContractRealV58 || window.__openContractRenderOnly;
+
+    if(typeof render === 'function'){
+      return render.call(window, id);
+    }
+
+    console.error('Função renderizadora do contrato não encontrada.');
+    if(typeof toastMsg === 'function') toastMsg('Erro ao abrir contrato.');
+    else alert('Erro ao abrir contrato.');
+  };
+
+  // openContract agora decide o fluxo, sem substituir a renderização real.
+  window.openContract = function(id){
+    const b = budgetById(id);
+    if(b?.contractCreatedAt) return window.viewContract(id);
+    return window.createContract(id);
+  };
+
+  const oldRender = window.renderBudgets;
+  if(typeof oldRender === 'function'){
+    window.renderBudgets = function(){
+      const r = oldRender.apply(this, arguments);
+      setTimeout(setContractButtons, 100);
+      return r;
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>setTimeout(setContractButtons, 200));
+  document.addEventListener('click', ()=>setTimeout(setContractButtons, 120), true);
+  setTimeout(setContractButtons, 300);
+})();
+</script>
+
 </body></html>
