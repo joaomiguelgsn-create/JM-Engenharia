@@ -1282,7 +1282,7 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
 
 <section id="nuvem" class="section"><div class="grid cols2"><div class="card"><h3>Nuvem e login</h3><p class="muted">Conecte com Supabase para salvar tudo online e acessar pelo celular, notebook ou qualquer computador.</p><div id="cloudBox"></div></div><div class="card"><h3>Status</h3><div id="cloudInfo"></div></div></div></section>
 <section id="proposta" class="section"><div class="card"><div id="proposalPrint"></div></div></section>
-</main></div><div class="modal" id="modal"><div class="card"><h3>Tarefa</h3><div class="form"><div class="field"><label>Tipo de projeto</label><select id="tTipo"></select></div><div class="field"><label>Etapa</label><input id="tEtapa" placeholder="Ex: Planta baixa"></div><div class="field"><label>Fase atual</label><select id="tFase"><option>Levantamento</option><option>Concepção</option><option>Desenvolvimento</option><option>Detalhamento</option><option>Compatibilização</option><option>Revisão</option><option>Entrega<option value="Não regularizado">Não regularizado</option></select></div><div class="field"><label>Responsável</label><input id="tResp" value="João Miguel"></div><div class="field"><label>Prioridade</label><select id="tPrio"><option>Baixa</option><option>Média</option><option>Alta</option></select></div><div class="field"><label>Status</label><select id="tStatus"><option>Não iniciada</option><option>Em andamento</option><option>Concluída</option></select></div><div class="field"><label>Prazo</label><input id="tPrazo" type="date"></div><div class="field full"><label>Observações</label><textarea id="tObs"></textarea></div></div><div class="btns" style="margin-top:14px"><button class="btn primary" onclick="saveTask()">Salvar tarefa</button><button class="btn" onclick="closeModal()">Cancelar</button></div></div></div><div class="modal" id="historyModal"><div class="card"><div id="historyBox"></div><div class="btns" style="margin-top:14px"><button class="btn" onclick="historyModal.style.display='none'">Fechar</button></div></div></div><div class="toast" id="toast"></div>
+</main></div><div class="modal" id="modal"><div class="card"><h3>Tarefa</h3><div class="form"><div class="field"><label>Tipo de projeto</label><select id="tTipo"></select></div><div class="field"><label>Etapa</label><input id="tEtapa" placeholder="Ex: Planta baixa"></div><div class="field"><label>Fase atual</label><select id="tFase"><option>Levantamento</option><option>Concepção</option><option>Desenvolvimento</option><option>Detalhamento</option><option>Compatibilização</option><option>Revisão</option><option>Entrega</option></select></div><div class="field"><label>Responsável</label><input id="tResp" value="João Miguel"></div><div class="field"><label>Prioridade</label><select id="tPrio"><option>Baixa</option><option>Média</option><option>Alta</option></select></div><div class="field"><label>Status</label><select id="tStatus"><option>Não iniciada</option><option>Em andamento</option><option>Concluída</option></select></div><div class="field"><label>Prazo</label><input id="tPrazo" type="date"></div><div class="field full"><label>Observações</label><textarea id="tObs"></textarea></div></div><div class="btns" style="margin-top:14px"><button class="btn primary" onclick="saveTask()">Salvar tarefa</button><button class="btn" onclick="closeModal()">Cancelar</button></div></div></div><div class="modal" id="historyModal"><div class="card"><div id="historyBox"></div><div class="btns" style="margin-top:14px"><button class="btn" onclick="historyModal.style.display='none'">Fechar</button></div></div></div><div class="toast" id="toast"></div>
 <script>
 const BASE={precos:{'Elétrico':[8,9,10],'Hidrossanitário':[8,9,10],'Estrutural':[15,16.5,18],'Arquitetônico':[25,27.5,30],'Combo Completo':[48,55,63]},padrao:{'Simples':1,'Médio':1.25,'Alto padrão':1.6,'Condomínio':1.4},prazo:{'Normal':1,'Rápido':1.15,'Urgente':1.3},dificuldade:{'Fácil':1,'Média':1.15,'Difícil':1.3},combo:{'Sem combo':0,'Elétrico + Hidro':0.10,'Pacote por itens':0.15,'Combo Completo direto':0},chance:{'Frio':0.2,'Morno':0.5,'Quente':0.8},perfil:{'Tranquilo':1,'Normal':1,'Exigente':1.05,'Enrolado':1.1},tipoCliente:{'Particular':1,'Construtora':0.95,'Investidor':0.97,'Parceria':0.9}};
 const pages=[['painel','Painel','Visão geral da JM Neto Engenharia.'],['orcamento','Novo orçamento','Monte o preço com a base da planilha.'],['clientes','Clientes e orçamentos','Histórico, status e ações.'],['projetos','Projetos','Orçamentos fechados viram projetos automaticamente.'],['tarefas','Tarefas','Separadas por tipo de projeto.'],['financeiro','Financeiro','Recebido e a receber.'],['anexos','Anexos','Plantas, PDFs e documentos.'],['prefeitura','Prefeitura','Protocolos, exigências e aprovações.'],['nuvem','Nuvem','Login, sincronização e backup online.'],['base','Base de preços','Valores e multiplicadores.']];
@@ -4858,21 +4858,167 @@ init();
 </script>
 
 
-<script>
-document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('select').forEach(s=>{
-    if((s.innerHTML||'').includes('Aprovado') && !(s.innerHTML||'').includes('Não regularizado')){
-      s.insertAdjacentHTML('beforeend','<option value="Não regularizado">Não regularizado</option>');
+
+<script id="jm-prefeitura-movimentacao-nao-regularizado-certo">
+/* ===== PATCH JM — "Não será regularizado" só como movimentação da Prefeitura ===== */
+(function(){
+  const NAO_REG = 'Não será regularizado';
+  const STATUS_NAO_REG = 'Não regularizado';
+  const STEP_OPTIONS = ['Protocolado','Entrou em análise','Exigência emitida','Correção enviada','Reapresentado','Aprovado',NAO_REG,'Indeferido','Outro'];
+  const FILTERS = ['Todos','Protocolados','Com exigência','Aprovados','Não protocolados','Não regularizado','Indeferidos'];
+
+  function s(){ return window.state || {}; }
+  function td(){ return typeof today === 'function' ? today() : new Date().toISOString().slice(0,10); }
+  function bd(v){ return typeof brDate === 'function' ? brDate(v) : (v || '-'); }
+  function saveSafe(){ try{ if(typeof save === 'function') save(); }catch(e){} }
+  function projectsClosed(){ return typeof closedProjects === 'function' ? closedProjects() : ((s().budgets || []).filter(b => b.status === 'Fechado')); }
+
+  function ensurePref(id){
+    const st = s();
+    st.prefeitura = Array.isArray(st.prefeitura) ? st.prefeitura : [];
+    let p = st.prefeitura.find(x => String(x.id) === String(id));
+    if(!p){
+      p = {id, protocol:'', status:'Não protocolado', date:'', move:'', obs:'', steps:[]};
+      st.prefeitura.unshift(p);
     }
-  });
-  document.querySelectorAll('.filterBar,.financeFilters,.projectStatusFilters').forEach(f=>{
-    if(!f.innerHTML.includes('Não regularizado')){
-      const b=document.createElement('button');
-      b.textContent='Não regularizado';
-      b.dataset.filter='Não regularizado';
-      f.appendChild(b);
-    }
-  });
-});
+    if(!Array.isArray(p.steps)) p.steps = [];
+    if(!p.status) p.status = 'Não protocolado';
+    return p;
+  }
+  window.prefEnsure = ensurePref;
+
+  function findPref(id){
+    const arr = Array.isArray(s().prefeitura) ? s().prefeitura : [];
+    return arr.find(x => String(x.id) === String(id));
+  }
+  window.prefFind = findPref;
+
+  function pStatus(id){
+    const p = findPref(id);
+    return p ? (p.status || 'Não protocolado') : 'Não protocolado';
+  }
+  function match(status, filter){
+    if(filter === 'Todos') return true;
+    if(filter === 'Protocolados') return ['Protocolado','Em análise','Reapresentado','Aguardando cliente'].includes(status);
+    if(filter === 'Com exigência') return status === 'Com exigência';
+    if(filter === 'Aprovados') return status === 'Aprovado';
+    if(filter === 'Não protocolados') return status === 'Não protocolado';
+    if(filter === 'Não regularizado') return status === STATUS_NAO_REG;
+    if(filter === 'Indeferidos') return status === 'Indeferido';
+    return true;
+  }
+
+  window.prefClass = function(st){
+    if(st === 'Aprovado') return 'ok';
+    if(st === 'Com exigência' || st === 'Indeferido') return 'bad';
+    if(st === STATUS_NAO_REG) return 'warn';
+    if(['Protocolado','Em análise','Reapresentado','Aguardando cliente'].includes(st)) return 'warn';
+    return 'blue';
+  };
+
+  window.setPrefFilterFinal = function(filter){
+    s().prefFilter = filter;
+    saveSafe();
+    renderPrefeitura();
+  };
+
+  window.renderPrefeitura = function(){
+    if(!window.prefList || !window.prefEditor) return;
+    if(window.prefEditing) return window.renderPrefEditor(window.prefEditing);
+
+    const st = s();
+    st.prefFilter = st.prefFilter || 'Todos';
+    const projects = projectsClosed();
+    const counts = {};
+    FILTERS.forEach(f => counts[f] = f === 'Todos' ? projects.length : projects.filter(b => match(pStatus(b.id), f)).length);
+    const shown = projects.filter(b => match(pStatus(b.id), st.prefFilter));
+
+    prefEditor.innerHTML = '';
+    prefList.innerHTML = `
+      <div class="prefFilterBar">
+        ${FILTERS.map(f => `<button class="${st.prefFilter===f?'active':''}" onclick="setPrefFilterFinal('${f}')">${f} <small>(${counts[f]})</small></button>`).join('')}
+      </div>
+      <div class="prefProjectsGrid">
+        ${shown.map(b => {
+          const p = findPref(b.id) || {status:'Não protocolado', protocol:'', steps:[]};
+          const ds = typeof daysSince === 'function' ? daysSince(p.move || p.date) : null;
+          return `<div class="prefProjectCard ${p.status==='Aprovado'?'prefApproved':''}">
+            <div class="projectTopActions">
+              <div><h4>${b.cliente || 'Projeto'}</h4><p class="mini">${(b.projetos || []).join(', ')}</p></div>
+              <span class="pill ${prefClass(p.status)}">${p.status || 'Não protocolado'}</span>
+            </div>
+            <div class="prefMeta">
+              <div><small>Protocolo</small><b>${p.protocol || '-'}</b></div>
+              <div><small>Etapas</small><b>${(p.steps || []).length}</b></div>
+              <div><small>Movimentação</small><b>${p.move ? bd(p.move) : p.date ? bd(p.date) : '-'}</b></div>
+              <div><small>Parado há</small><b>${ds !== null ? ds + ' dia(s)' : '-'}</b></div>
+            </div>
+            <button class="btn primary" onclick="openPrefEditor('${b.id}')">Abrir processo</button>
+          </div>`;
+        }).join('') || '<p class="muted">Nenhum projeto neste filtro.</p>'}
+      </div>`;
+  };
+
+  window.openPrefEditor = function(id){ window.prefEditing = id; renderPrefeitura(); };
+  window.closePrefEditor = function(){ window.prefEditing = null; renderPrefeitura(); };
+
+  window.renderPrefEditor = function(id){
+    const b = (s().budgets || []).find(x => String(x.id) === String(id));
+    const p = ensurePref(id);
+    if(!window.prefList || !window.prefEditor) return;
+    prefList.innerHTML = '';
+    prefEditor.innerHTML = `
+      <button class="btn prefBack" onclick="closePrefEditor()">← Voltar para projetos</button>
+      <div class="prefEditorLayout">
+        <div class="card prefEditorSingle">
+          <h3>${b ? b.cliente : 'Projeto'}</h3>
+          <p class="muted">${b ? (b.projetos || []).join(', ') : ''}</p>
+          ${p.status === 'Aprovado' ? '<div class="prefApprovedBanner">✅ Projeto aprovado na prefeitura</div>' : ''}
+          ${p.status === STATUS_NAO_REG ? '<div class="prefApprovedBanner" style="border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.14);color:#fde68a">⚠️ Projeto não será regularizado</div>' : ''}
+          <h3>Nova movimentação</h3>
+          <div class="form">
+            <div class="field span2"><label>Número do protocolo</label><input id="prefProtocol" value="${p.protocol || ''}" placeholder="Ex: 2026/00123"></div>
+            <div class="field"><label>Etapa</label><select id="prefStepName">${STEP_OPTIONS.map(x => `<option>${x}</option>`).join('')}</select></div>
+            <div class="field"><label>Data</label><input id="prefStepDate" type="date" value="${td()}"></div>
+            <div class="field full"><label>Descrição</label><input id="prefStepDesc" placeholder="Ex: cliente não fechou prefeitura / não será protocolado"></div>
+          </div>
+          <div class="btns" style="margin-top:14px"><button class="btn primary" onclick="addPrefStep('${id}')">Adicionar movimentação</button></div>
+        </div>
+        <div class="card"><h3>Movimentações</h3><div>
+          ${p.steps.length ? p.steps.map((x,i) => `<div class="prefStep"><i>${p.steps.length-i}</i><div><b>${x.name}</b><br><span class="mini">${bd(x.date)} • ${x.desc || ''}</span></div><button class="btn red" onclick="delPrefStep('${id}','${x.id}')">Apagar</button></div>`).join('') : '<p class="muted">Nenhuma movimentação registrada.</p>'}
+        </div></div>
+      </div>`;
+  };
+
+  window.addPrefStep = function(id){
+    const p = ensurePref(id);
+    const name = document.getElementById('prefStepName')?.value || 'Protocolado';
+    const date = document.getElementById('prefStepDate')?.value || td();
+    p.protocol = document.getElementById('prefProtocol')?.value?.trim() || p.protocol || '';
+    p.steps.unshift({id: typeof uid === 'function' ? uid() : Date.now().toString(36), name, date, desc: document.getElementById('prefStepDesc')?.value?.trim() || 'Movimentação registrada.'});
+    p.move = date;
+    if(name === 'Aprovado') p.status = 'Aprovado';
+    else if(name === 'Exigência emitida') p.status = 'Com exigência';
+    else if(name === 'Reapresentado') p.status = 'Reapresentado';
+    else if(name === 'Entrou em análise') p.status = 'Em análise';
+    else if(name === 'Protocolado') p.status = 'Protocolado';
+    else if(name === 'Indeferido') p.status = 'Indeferido';
+    else if(name === NAO_REG) p.status = STATUS_NAO_REG;
+    saveSafe();
+    try{ toastMsg('Movimentação adicionada.'); }catch(e){}
+    renderPrefEditor(id);
+  };
+
+  window.delPrefStep = window.delPrefStep || function(id,sid){
+    const p = ensurePref(id);
+    if(!confirm('Apagar movimentação?')) return;
+    p.steps = p.steps.filter(x => String(x.id) !== String(sid));
+    saveSafe();
+    renderPrefEditor(id);
+  };
+
+  setTimeout(function(){ try{ renderPrefeitura(); }catch(e){} }, 100);
+})();
 </script>
+
 </body></html>
