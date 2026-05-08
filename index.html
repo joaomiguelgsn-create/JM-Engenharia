@@ -4752,4 +4752,105 @@ init();
 })();
 </script>
 
+
+<script id="jm-patch-criar-contrato-apos-tombstone-20260508-v2">
+(function(){
+  'use strict';
+  if(window.__JM_CRIAR_CONTRATO_APOS_TOMBSTONE_V2__) return;
+  window.__JM_CRIAR_CONTRATO_APOS_TOMBSTONE_V2__ = true;
+
+  const TOMBSTONE_KEY = 'jm_deleted_contracts_tombstones_v1';
+
+  function norm(v){
+    return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  }
+  function todayIso(){
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function uid(){ return 'ct_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+  function ensureState(){
+    if(!window.state) window.state = {};
+    if(!Array.isArray(window.state.budgets)) window.state.budgets = [];
+    if(!Array.isArray(window.state.contracts)) window.state.contracts = [];
+    if(!Array.isArray(window.state.deletedContracts)) window.state.deletedContracts = [];
+    return window.state;
+  }
+  function projectText(b){
+    if(!b) return '';
+    if(typeof window.projectText === 'function'){
+      try{return window.projectText(b)}catch(e){}
+    }
+    return Array.isArray(b.projetos) ? b.projetos.join(', ') : String(b.tipo || b.projeto || '');
+  }
+  function getTombstones(){
+    try{
+      var a = JSON.parse(localStorage.getItem(TOMBSTONE_KEY) || '[]');
+      return Array.isArray(a) ? a : [];
+    }catch(e){ return []; }
+  }
+  function setTombstones(a){
+    try{ localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(Array.isArray(a) ? a.slice(-300) : [])); }catch(e){}
+  }
+  function tombMatchesBudget(t,b){
+    if(!t || !b) return false;
+    if(t.budgetId && b.id && String(t.budgetId) === String(b.id)) return true;
+    var tc = norm(t.cliente), bc = norm(b.cliente);
+    if(tc && bc && tc === bc){
+      var tp = norm(t.projetos), bp = norm(projectText(b));
+      var tcity = norm(t.cidade), bcity = norm(b.cidade);
+      return (!tp || !bp || tp === bp || bp.includes(tp) || tp.includes(bp)) && (!tcity || !bcity || tcity === bcity);
+    }
+    return false;
+  }
+  function saveState(){
+    var s = ensureState();
+    try{ localStorage.setItem('jm_v15_online_backup', JSON.stringify(s)); }catch(e){}
+    try{ localStorage.setItem('jm_v14_estavel', JSON.stringify(s)); }catch(e){}
+    try{ localStorage.setItem('jm_state', JSON.stringify(s)); }catch(e){}
+    try{ if(typeof window.saveHardJMDefinitive === 'function') window.saveHardJMDefinitive(); }catch(e){}
+    try{ if(typeof window.queueCloudSave === 'function') window.queueCloudSave(); }catch(e){}
+  }
+  function renderContractsNow(){
+    try{ if(typeof window.renderContractsJMFinal === 'function') window.renderContractsJMFinal(); }catch(e){}
+    try{ if(typeof window.renderBudgetTable === 'function') window.renderBudgetTable(); }catch(e){}
+  }
+  function restoreCreatedContract(budgetId){
+    var s = ensureState();
+    var b = s.budgets.find(function(x){return String(x.id) === String(budgetId)});
+    if(!b) return;
+
+    // Ao criar um contrato novo para o mesmo orçamento, a exclusão antiga deixa de valer.
+    var filteredLocal = getTombstones().filter(function(t){ return !tombMatchesBudget(t,b); });
+    setTombstones(filteredLocal);
+    s.deletedContracts = (Array.isArray(s.deletedContracts) ? s.deletedContracts : []).filter(function(t){ return !tombMatchesBudget(t,b); });
+
+    if(!s.contracts.some(function(c){return String(c.budgetId) === String(b.id)})){
+      var c = {id:uid(), budgetId:b.id, createdAt:todayIso(), createdAtMs:Date.now()};
+      s.contracts.unshift(c);
+      b.contractCreatedAt = c.createdAt;
+      b.contractLocked = true;
+    }else{
+      var last = s.contracts.filter(function(c){return String(c.budgetId) === String(b.id)}).sort(function(a,b){return Number(b.createdAtMs||0)-Number(a.createdAtMs||0)})[0];
+      b.contractCreatedAt = (last && last.createdAt) || b.contractCreatedAt || todayIso();
+      b.contractLocked = true;
+    }
+
+    saveState();
+    renderContractsNow();
+    try{ if(typeof window.go === 'function') window.go('contratos'); }catch(e){}
+    setTimeout(renderContractsNow, 80);
+    setTimeout(renderContractsNow, 250);
+  }
+
+  document.addEventListener('click', function(ev){
+    var btn = ev.target && ev.target.closest ? ev.target.closest('button[data-create-contract]') : null;
+    if(!btn) return;
+    var id = btn.getAttribute('data-create-contract');
+    setTimeout(function(){ restoreCreatedContract(id); }, 60);
+    setTimeout(function(){ restoreCreatedContract(id); }, 260);
+  }, true);
+})();
+</script>
+
 </body></html>
