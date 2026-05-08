@@ -4151,7 +4151,7 @@ init();
 </script>
 
 
-<!-- ===== PATCH CONTRATO ESTÁVEL ===== -->
+<!-- ===== PATCH CONTRATO DEFINITIVO ===== -->
 <script>
 (function(){
 
@@ -4167,116 +4167,145 @@ function todayIso(){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+function brFromIso(iso){
+  const p = String(iso || '').split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : new Date().toLocaleDateString('pt-BR');
+}
+
 function budgetById(id){
   return (window.state?.budgets || []).find(x => String(x.id) === String(id));
 }
 
-// salva função ORIGINAL que realmente abre o contrato
-if(typeof window.openContract === 'function' && !window._originalOpenContractJM){
-  window._originalOpenContractJM = window.openContract;
+// guarda a função original que desenha o contrato
+if(typeof window.openContract === 'function' && !window._jmOriginalOpenContract){
+  window._jmOriginalOpenContract = window.openContract;
 }
 
-// cria contrato
 window.createContractJM = function(id){
   const b = budgetById(id);
-  if(!b) return;
+  if(!b){
+    if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
+    return;
+  }
 
   if(!b.contractCreatedAt){
     b.contractCreatedAt = todayIso();
+    b.contractLocked = true;
     saveStateSafe();
   }
 
-  if(typeof renderBudgets === 'function'){
-    renderBudgets();
-  }
+  if(typeof renderBudgets === 'function') renderBudgets();
 
-  setTimeout(updateContractButtonsJM, 100);
-
-  if(typeof toastMsg === 'function'){
-    toastMsg('Contrato criado com sucesso.');
-  }
+  if(typeof toastMsg === 'function') toastMsg('Contrato criado. Agora clique em “Ver contrato”.');
+  else alert('Contrato criado. Agora clique em “Ver contrato”.');
 };
 
-// ver contrato
 window.viewContractJM = function(id){
   const b = budgetById(id);
-  if(!b) return;
-
-  if(typeof window._originalOpenContractJM === 'function'){
-    window._originalOpenContractJM(id);
+  if(!b){
+    if(typeof toastMsg === 'function') toastMsg('Orçamento não encontrado.');
+    return;
   }
 
-  setTimeout(()=>{
+  if(!b.contractCreatedAt){
+    if(typeof toastMsg === 'function') toastMsg('Clique primeiro em “Criar contrato”.');
+    else alert('Clique primeiro em “Criar contrato”.');
+    return;
+  }
+
+  if(typeof window._jmOriginalOpenContract === 'function'){
+    window._jmOriginalOpenContract(id);
+  }else{
+    if(typeof toastMsg === 'function') toastMsg('Erro ao abrir contrato.');
+    return;
+  }
+
+  setTimeout(function(){
     const root = document.getElementById('proposalPrint');
     if(!root) return;
 
-    const parts = String(b.contractCreatedAt || '').split('-');
+    const data = brFromIso(b.contractCreatedAt);
 
-    if(parts.length === 3){
-      const br = `${parts[2]}/${parts[1]}/${parts[0]}`;
-
-      root.innerHTML = root.innerHTML.replace(
-        /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
-        `Luís Eduardo Magalhães/BA, ${br}.`
-      );
-    }
-  },80);
+    root.innerHTML = root.innerHTML.replace(
+      /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
+      `Luís Eduardo Magalhães/BA, ${data}.`
+    );
+  }, 80);
 };
 
-// atualiza botões
-window.updateContractButtonsJM = function(){
+// sobrescreve budgetRow DEPOIS que o sistema carregou.
+// Aqui o botão já nasce certo, sem depender de troca posterior.
+function installBudgetRowPatch(){
+  if(typeof window.budgetRow !== 'function') return false;
+  if(window._jmBudgetRowPatched) return true;
 
-  document.querySelectorAll('button,.btn').forEach(btn=>{
+  window._jmBudgetRowPatched = true;
 
-    const onclick = btn.getAttribute('onclick') || '';
+  window.budgetRow = function(b, archived=false){
+    const c = calcFrom(b);
+    const st = b.status || 'Aberto';
 
-    // botão antigo
-    if(onclick.includes('openContract(')){
+    const acts = st === 'Fechado'
+      ? '<span class="pill ok">Em projetos</span>'
+      : st === 'Perdido'
+        ? '<span class="pill bad">Perdido</span>'
+        : `<button class="btn green" onclick="closeBudget('${b.id}')">Fechar</button><button class="btn red" onclick="lostBudget('${b.id}')">Perdido</button>`;
 
-      const match = onclick.match(/openContract\(['"]?(.*?)['"]?\)/);
+    const statusClass = st === 'Fechado'
+      ? projectStatusInfo(b).cls
+      : st === 'Perdido'
+        ? 'bad'
+        : 'blue';
 
-      if(!match) return;
+    const statusText = st === 'Fechado'
+      ? projectStatusInfo(b).txt
+      : st;
 
-      const id = match[1];
-      const b = budgetById(id);
+    const contractButton = b.contractCreatedAt
+      ? `<button class="btn primary" onclick="viewContractJM('${b.id}')">Ver contrato</button>`
+      : `<button class="btn primary" onclick="createContractJM('${b.id}')">Criar contrato</button>`;
 
-      if(!b) return;
+    return `<tr class="${archived?'budgetArchived':''}">
+      <td><b>${b.cliente || ''}</b><br><span class="muted">${b.telefone || ''} ${b.cidade ? '• '+b.cidade : ''}</span><br><span class="mini">${b.endereco || ''}</span></td>
+      <td>${(b.projetos || []).join(', ')}</td>
+      <td><span class="areaNowrap">${b.area || 0}m²</span></td>
+      <td>${money(c.final)}</td>
+      <td><span class="pill ${statusClass}">${statusText}</span></td>
+      <td><div class="btns">
+        <button class="btn" onclick="editBudget('${b.id}')">Editar</button>
+        <button class="btn" onclick="openProposal('${b.id}')">Proposta</button>
+        ${contractButton}
+        <button class="btn" onclick="showClientHistory('${safeArg(b.cliente)}')">Histórico</button>
+        <button class="btn" onclick="duplicateBudget('${b.id}')">Duplicar</button>
+        ${acts}
+        <button class="btn red" onclick="delBudget('${b.id}')">Apagar</button>
+      </div></td>
+    </tr>`;
+  };
 
-      if(b.contractCreatedAt){
-        btn.textContent = 'Ver contrato';
-        btn.setAttribute('onclick', `viewContractJM('${id}')`);
-      }else{
-        btn.textContent = 'Criar contrato';
-        btn.setAttribute('onclick', `createContractJM('${id}')`);
-      }
-    }
-  });
-};
+  return true;
+}
 
-// intercepta renderização da tabela
-if(typeof window.renderBudgets === 'function' && !window._renderBudgetsWrappedJM){
+function rerender(){
+  installBudgetRowPatch();
+  if(typeof renderBudgets === 'function') renderBudgets();
+}
 
-  window._renderBudgetsWrappedJM = true;
-
-  const oldRender = window.renderBudgets;
-
-  window.renderBudgets = function(){
-
-    const r = oldRender.apply(this, arguments);
-
-    setTimeout(updateContractButtonsJM, 120);
-
+const oldInitJM = window.init;
+if(typeof oldInitJM === 'function' && !window._jmInitWrapped){
+  window._jmInitWrapped = true;
+  window.init = function(){
+    const r = oldInitJM.apply(this, arguments);
+    setTimeout(rerender, 100);
     return r;
   };
 }
 
-document.addEventListener('DOMContentLoaded', ()=>{
-  setTimeout(updateContractButtonsJM, 300);
+document.addEventListener('DOMContentLoaded', function(){
+  setTimeout(rerender, 200);
 });
 
-document.addEventListener('click', ()=>{
-  setTimeout(updateContractButtonsJM, 120);
-}, true);
+setTimeout(rerender, 500);
 
 })();
 </script>
