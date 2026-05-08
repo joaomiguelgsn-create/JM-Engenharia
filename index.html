@@ -1282,7 +1282,7 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
 
 <section id="nuvem" class="section"><div class="grid cols2"><div class="card"><h3>Nuvem e login</h3><p class="muted">Conecte com Supabase para salvar tudo online e acessar pelo celular, notebook ou qualquer computador.</p><div id="cloudBox"></div></div><div class="card"><h3>Status</h3><div id="cloudInfo"></div></div></div></section>
 <section id="proposta" class="section"><div class="card"><div id="proposalPrint"></div></div></section>
-</main></div><div class="modal" id="modal"><div class="card"><h3>Tarefa</h3><div class="form"><div class="field"><label>Tipo de projeto</label><select id="tTipo"></select></div><div class="field"><label>Etapa</label><input id="tEtapa" placeholder="Ex: Planta baixa"></div><div class="field"><label>Fase atual</label><select id="tFase"><option>Levantamento</option><option>Concepção</option><option>Desenvolvimento</option><option>Detalhamento</option><option>Compatibilização</option><option>Revisão</option><option>Entrega</option></select></div><div class="field"><label>Responsável</label><input id="tResp" value="João Miguel"></div><div class="field"><label>Prioridade</label><select id="tPrio"><option>Baixa</option><option>Média</option><option>Alta</option></select></div><div class="field"><label>Status</label><select id="tStatus"><option>Não iniciada</option><option>Em andamento</option><option>Concluída</option></select></div><div class="field"><label>Prazo</label><input id="tPrazo" type="date"></div><div class="field full"><label>Observações</label><textarea id="tObs"></textarea></div></div><div class="btns" style="margin-top:14px"><button class="btn primary" onclick="saveTask()">Salvar tarefa</button><button class="btn" onclick="closeModal()">Cancelar</button></div></div></div><div class="modal" id="historyModal"><div class="card"><div id="historyBox"></div><div class="btns" style="margin-top:14px"><button class="btn" onclick="historyModal.style.display='none'">Fechar</button></div></div></div><div class="toast" id="toast"></div>
+</main></div><div class="modal" id="modal"><div class="card"><h3>Tarefa</h3><div class="form"><div class="field"><label>Tipo de projeto</label><select id="tTipo"></select></div><div class="field"><label>Etapa</label><input id="tEtapa" placeholder="Ex: Planta baixa"></div><div class="field"><label>Fase atual</label><select id="tFase"><option>Levantamento</option><option>Concepção</option><option>Desenvolvimento</option><option>Detalhamento</option><option>Compatibilização</option><option>Revisão</option><option>Entrega<option value="Não regularizado">Não regularizado</option></select></div><div class="field"><label>Responsável</label><input id="tResp" value="João Miguel"></div><div class="field"><label>Prioridade</label><select id="tPrio"><option>Baixa</option><option>Média</option><option>Alta</option></select></div><div class="field"><label>Status</label><select id="tStatus"><option>Não iniciada</option><option>Em andamento</option><option>Concluída</option></select></div><div class="field"><label>Prazo</label><input id="tPrazo" type="date"></div><div class="field full"><label>Observações</label><textarea id="tObs"></textarea></div></div><div class="btns" style="margin-top:14px"><button class="btn primary" onclick="saveTask()">Salvar tarefa</button><button class="btn" onclick="closeModal()">Cancelar</button></div></div></div><div class="modal" id="historyModal"><div class="card"><div id="historyBox"></div><div class="btns" style="margin-top:14px"><button class="btn" onclick="historyModal.style.display='none'">Fechar</button></div></div></div><div class="toast" id="toast"></div>
 <script>
 const BASE={precos:{'Elétrico':[8,9,10],'Hidrossanitário':[8,9,10],'Estrutural':[15,16.5,18],'Arquitetônico':[25,27.5,30],'Combo Completo':[48,55,63]},padrao:{'Simples':1,'Médio':1.25,'Alto padrão':1.6,'Condomínio':1.4},prazo:{'Normal':1,'Rápido':1.15,'Urgente':1.3},dificuldade:{'Fácil':1,'Média':1.15,'Difícil':1.3},combo:{'Sem combo':0,'Elétrico + Hidro':0.10,'Pacote por itens':0.15,'Combo Completo direto':0},chance:{'Frio':0.2,'Morno':0.5,'Quente':0.8},perfil:{'Tranquilo':1,'Normal':1,'Exigente':1.05,'Enrolado':1.1},tipoCliente:{'Particular':1,'Construtora':0.95,'Investidor':0.97,'Parceria':0.9}};
 const pages=[['painel','Painel','Visão geral da JM Neto Engenharia.'],['orcamento','Novo orçamento','Monte o preço com a base da planilha.'],['clientes','Clientes e orçamentos','Histórico, status e ações.'],['projetos','Projetos','Orçamentos fechados viram projetos automaticamente.'],['tarefas','Tarefas','Separadas por tipo de projeto.'],['financeiro','Financeiro','Recebido e a receber.'],['anexos','Anexos','Plantas, PDFs e documentos.'],['prefeitura','Prefeitura','Protocolos, exigências e aprovações.'],['nuvem','Nuvem','Login, sincronização e backup online.'],['base','Base de preços','Valores e multiplicadores.']];
@@ -4857,4 +4857,22 @@ init();
 })();
 </script>
 
+
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('select').forEach(s=>{
+    if((s.innerHTML||'').includes('Aprovado') && !(s.innerHTML||'').includes('Não regularizado')){
+      s.insertAdjacentHTML('beforeend','<option value="Não regularizado">Não regularizado</option>');
+    }
+  });
+  document.querySelectorAll('.filterBar,.financeFilters,.projectStatusFilters').forEach(f=>{
+    if(!f.innerHTML.includes('Não regularizado')){
+      const b=document.createElement('button');
+      b.textContent='Não regularizado';
+      b.dataset.filter='Não regularizado';
+      f.appendChild(b);
+    }
+  });
+});
+</script>
 </body></html>
