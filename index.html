@@ -4150,4 +4150,135 @@ init();
 })();
 </script>
 
+
+<!-- ===== PATCH CONTRATO ESTÁVEL ===== -->
+<script>
+(function(){
+
+function saveStateSafe(){
+  try{
+    if(typeof save === 'function') save();
+    else localStorage.setItem('jmNetoEngenhariaState', JSON.stringify(window.state || {}));
+  }catch(e){}
+}
+
+function todayIso(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function budgetById(id){
+  return (window.state?.budgets || []).find(x => String(x.id) === String(id));
+}
+
+// salva função ORIGINAL que realmente abre o contrato
+if(typeof window.openContract === 'function' && !window._originalOpenContractJM){
+  window._originalOpenContractJM = window.openContract;
+}
+
+// cria contrato
+window.createContractJM = function(id){
+  const b = budgetById(id);
+  if(!b) return;
+
+  if(!b.contractCreatedAt){
+    b.contractCreatedAt = todayIso();
+    saveStateSafe();
+  }
+
+  if(typeof renderBudgets === 'function'){
+    renderBudgets();
+  }
+
+  setTimeout(updateContractButtonsJM, 100);
+
+  if(typeof toastMsg === 'function'){
+    toastMsg('Contrato criado com sucesso.');
+  }
+};
+
+// ver contrato
+window.viewContractJM = function(id){
+  const b = budgetById(id);
+  if(!b) return;
+
+  if(typeof window._originalOpenContractJM === 'function'){
+    window._originalOpenContractJM(id);
+  }
+
+  setTimeout(()=>{
+    const root = document.getElementById('proposalPrint');
+    if(!root) return;
+
+    const parts = String(b.contractCreatedAt || '').split('-');
+
+    if(parts.length === 3){
+      const br = `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+      root.innerHTML = root.innerHTML.replace(
+        /Luís Eduardo Magalhães\/BA,\s*______\s*de\s*________________________\s*de\s*________\./g,
+        `Luís Eduardo Magalhães/BA, ${br}.`
+      );
+    }
+  },80);
+};
+
+// atualiza botões
+window.updateContractButtonsJM = function(){
+
+  document.querySelectorAll('button,.btn').forEach(btn=>{
+
+    const onclick = btn.getAttribute('onclick') || '';
+
+    // botão antigo
+    if(onclick.includes('openContract(')){
+
+      const match = onclick.match(/openContract\(['"]?(.*?)['"]?\)/);
+
+      if(!match) return;
+
+      const id = match[1];
+      const b = budgetById(id);
+
+      if(!b) return;
+
+      if(b.contractCreatedAt){
+        btn.textContent = 'Ver contrato';
+        btn.setAttribute('onclick', `viewContractJM('${id}')`);
+      }else{
+        btn.textContent = 'Criar contrato';
+        btn.setAttribute('onclick', `createContractJM('${id}')`);
+      }
+    }
+  });
+};
+
+// intercepta renderização da tabela
+if(typeof window.renderBudgets === 'function' && !window._renderBudgetsWrappedJM){
+
+  window._renderBudgetsWrappedJM = true;
+
+  const oldRender = window.renderBudgets;
+
+  window.renderBudgets = function(){
+
+    const r = oldRender.apply(this, arguments);
+
+    setTimeout(updateContractButtonsJM, 120);
+
+    return r;
+  };
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  setTimeout(updateContractButtonsJM, 300);
+});
+
+document.addEventListener('click', ()=>{
+  setTimeout(updateContractButtonsJM, 120);
+}, true);
+
+})();
+</script>
+
 </body></html>
