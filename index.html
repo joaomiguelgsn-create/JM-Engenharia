@@ -5028,11 +5028,14 @@ init();
 
 
 
+
+
+
 <script>
-/* PATCH JM NETO — V3 salvar contrato exato no portal */
+/* PATCH JM NETO — V4 salvar contrato exato somente na tela do contrato */
 (function(){
-  if(window.__JM_EXACT_CONTRACT_PORTAL_V3__) return;
-  window.__JM_EXACT_CONTRACT_PORTAL_V3__ = true;
+  if(window.__JM_EXACT_CONTRACT_PORTAL_V4__) return;
+  window.__JM_EXACT_CONTRACT_PORTAL_V4__ = true;
 
   function getState(){
     try{ if(typeof state !== 'undefined' && state) window.state = state; }catch(e){}
@@ -5043,22 +5046,36 @@ init();
   }
 
   function notify(msg){
-    try{
-      if(typeof toastMsg === 'function') toastMsg(msg);
-      else alert(msg);
-    }catch(e){ alert(msg); }
+    try{ if(typeof toastMsg === 'function') toastMsg(msg); else alert(msg); }
+    catch(e){ alert(msg); }
+  }
+
+  function proposalIsVisible(){
+    var proposal = document.getElementById('proposta');
+    if(!proposal) return false;
+
+    var st = window.getComputedStyle ? getComputedStyle(proposal) : null;
+    var visible = !st || (st.display !== 'none' && st.visibility !== 'hidden' && st.opacity !== '0');
+
+    // Em alguns layouts a section ativa é controlada por classe.
+    var active = proposal.classList.contains('active') ||
+                 proposal.classList.contains('show') ||
+                 proposal.getAttribute('aria-hidden') === 'false' ||
+                 visible;
+
+    return !!active;
   }
 
   function currentContractHtml(){
+    if(!proposalIsVisible()) return '';
+
     var proposal = document.getElementById('proposalPrint');
     if(proposal && proposal.innerHTML && proposal.innerHTML.indexOf('contractDoc') >= 0){
       return proposal.innerHTML;
     }
 
-    var doc = document.querySelector('.contractDoc');
-    if(doc){
-      return doc.outerHTML;
-    }
+    var doc = proposal ? proposal.querySelector('.contractDoc') : null;
+    if(doc) return doc.outerHTML;
 
     return '';
   }
@@ -5066,48 +5083,39 @@ init();
   function findBudgetForContract(){
     var s = getState();
 
-    // 1) selectedProject costuma guardar o projeto/cliente selecionado
     if(s.selectedProject){
       var bySel = s.budgets.find(function(b){ return String(b.id) === String(s.selectedProject); });
       if(bySel) return bySel;
     }
 
-    // 2) tenta descobrir pelo nome do cliente dentro do contrato
     var html = currentContractHtml();
     if(html){
       for(var i=0;i<s.budgets.length;i++){
-        var b=s.budgets[i];
+        var b = s.budgets[i];
         if(b && b.cliente && html.indexOf(String(b.cliente)) >= 0) return b;
       }
     }
 
-    // 3) fallback: último orçamento com contrato criado
     var withContract = s.budgets.filter(function(b){ return b.contractCreatedAt || b.status === 'Fechado'; });
     return withContract[0] || s.budgets[0] || null;
   }
 
   async function forceCloudSave(){
     try{
-      // Preferir funções internas do sistema, pois elas têm acesso ao sb/cloudUser via escopo original.
-      try{
-        if(typeof syncCloudNow === 'function'){
-          await syncCloudNow();
-          return true;
-        }
-      }catch(e1){ console.warn('syncCloudNow falhou', e1); }
+      if(typeof syncCloudNow === 'function'){
+        await syncCloudNow();
+        return true;
+      }
+    }catch(e1){ console.warn('syncCloudNow falhou', e1); }
 
-      try{
-        if(typeof queueCloudSave === 'function'){
-          queueCloudSave();
-          return true;
-        }
-      }catch(e2){ console.warn('queueCloudSave falhou', e2); }
+    try{
+      if(typeof queueCloudSave === 'function'){
+        queueCloudSave();
+        return true;
+      }
+    }catch(e2){ console.warn('queueCloudSave falhou', e2); }
 
-      return false;
-    }catch(err){
-      console.error(err);
-      return false;
-    }
+    return false;
   }
 
   async function saveExactContractToPortal(){
@@ -5115,12 +5123,11 @@ init();
     var html = currentContractHtml();
 
     if(!html || html.indexOf('contractDoc') < 0){
-      notify('Não encontrei o contrato aberto. Abra o contrato primeiro e tente novamente.');
+      notify('Abra o contrato primeiro para salvar no portal.');
       return;
     }
 
     var b = findBudgetForContract();
-
     if(!b){
       notify('Não consegui identificar o cliente/orçamento deste contrato.');
       return;
@@ -5159,88 +5166,83 @@ init();
     try{ localStorage.setItem('jm_v14_estavel', JSON.stringify(s)); }catch(e){}
 
     var ok = await forceCloudSave();
+    notify(ok ? 'Contrato exato salvo na nuvem para o portal.' : 'Contrato salvo localmente. Clique em “Sincronizar agora” na aba Nuvem.');
+  }
 
-    if(ok){
-      notify('Contrato exato salvo. Aguarde alguns segundos e teste no portal do cliente.');
-    }else{
-      notify('Contrato salvo localmente. Vá em Nuvem e clique em “Sincronizar agora”.');
-    }
+  function removeButtons(){
+    var b1 = document.getElementById('jmSaveExactContractPortalBtn');
+    if(b1) b1.remove();
+
+    var b2 = document.getElementById('jmFloatingContractSaveBtn');
+    if(b2) b2.style.display = 'none';
   }
 
   function injectButton(){
     var html = currentContractHtml();
-    if(!html || html.indexOf('contractDoc') < 0) return;
+
+    if(!html || html.indexOf('contractDoc') < 0){
+      removeButtons();
+      return;
+    }
 
     var target =
-      document.querySelector('.contractPrintActions .btns') ||
-      document.querySelector('.contractPrintActions') ||
-      document.getElementById('proposalPrint');
+      document.querySelector('#proposta .contractPrintActions .btns') ||
+      document.querySelector('#proposta .contractPrintActions') ||
+      document.querySelector('#proposalPrint .contractPrintActions .btns');
 
-    if(!target) return;
+    if(target && !document.getElementById('jmSaveExactContractPortalBtn')){
+      var btn = document.createElement('button');
+      btn.id = 'jmSaveExactContractPortalBtn';
+      btn.className = 'btn primary';
+      btn.type = 'button';
+      btn.textContent = 'Salvar contrato no portal';
+      btn.style.cssText = 'margin-left:8px;background:#16a34a!important;color:#fff!important;border-color:#16a34a!important;';
+      btn.onclick = saveExactContractToPortal;
+      target.appendChild(btn);
+    }
 
-    if(document.getElementById('jmSaveExactContractPortalBtn')) return;
+    var float = document.getElementById('jmFloatingContractSaveBtn');
+    if(!float){
+      float = document.createElement('button');
+      float.id = 'jmFloatingContractSaveBtn';
+      float.type = 'button';
+      float.textContent = 'Salvar contrato no portal';
+      float.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:999999;border:0;border-radius:999px;padding:14px 18px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer;box-shadow:0 18px 40px rgba(0,0,0,.25)';
+      float.onclick = saveExactContractToPortal;
+      document.body.appendChild(float);
+    }
 
-    var btn = document.createElement('button');
-    btn.id = 'jmSaveExactContractPortalBtn';
-    btn.type = 'button';
-    btn.textContent = 'Salvar contrato no portal';
-    btn.style.cssText = 'margin-left:8px;border:0;border-radius:14px;padding:12px 16px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer;box-shadow:0 10px 24px rgba(22,163,74,.22)';
-    btn.onclick = saveExactContractToPortal;
-
-    try{ target.appendChild(btn); }catch(e){}
+    float.style.display = 'block';
   }
 
-  // Botão flutuante de emergência, aparece quando há contrato na tela
-  function ensureFloatingButton(){
-    if(document.getElementById('jmFloatingContractSaveBtn')) return;
+  function tick(){ injectButton(); }
 
-    var btn = document.createElement('button');
-    btn.id = 'jmFloatingContractSaveBtn';
-    btn.type = 'button';
-    btn.textContent = 'Salvar contrato no portal';
-    btn.style.cssText = 'display:none;position:fixed;right:18px;bottom:18px;z-index:999999;border:0;border-radius:999px;padding:14px 18px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer;box-shadow:0 18px 40px rgba(0,0,0,.25)';
-    btn.onclick = saveExactContractToPortal;
-    document.body.appendChild(btn);
-  }
-
-  function toggleFloatingButton(){
-    ensureFloatingButton();
-    var btn = document.getElementById('jmFloatingContractSaveBtn');
-    if(btn) btn.style.display = currentContractHtml() ? 'block' : 'none';
-  }
-
-  function tick(){
-    injectButton();
-    toggleFloatingButton();
-  }
-
-  setInterval(tick, 800);
+  setInterval(tick, 900);
 
   try{
     var obs = new MutationObserver(tick);
-    obs.observe(document.documentElement || document.body, {childList:true, subtree:true, attributes:true});
+    obs.observe(document.documentElement || document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['class','style','aria-hidden']});
   }catch(e){}
 
-  // Também tenta envolver openContract, mas não depende disso.
   function wrapOpenContract(){
     if(typeof window.openContract !== 'function'){
       setTimeout(wrapOpenContract, 500);
       return;
     }
 
-    if(window.openContract.__jmPortalV3) return;
+    if(window.openContract.__jmPortalV4) return;
 
     var original = window.openContract;
     window.openContract = function(){
       var result = original.apply(this, arguments);
       setTimeout(tick, 500);
-      setTimeout(tick, 1200);
+      setTimeout(tick, 1300);
       return result;
     };
-    window.openContract.__jmPortalV3 = true;
+    window.openContract.__jmPortalV4 = true;
   }
-  wrapOpenContract();
 
+  wrapOpenContract();
   window.jmSaveExactContractToPortal = saveExactContractToPortal;
 })();
 </script>
