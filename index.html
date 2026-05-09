@@ -5045,9 +5045,65 @@ init();
     return window.state;
   }
 
-  function notify(msg){
-    try{ if(typeof toastMsg === 'function') toastMsg(msg); else alert(msg); }
-    catch(e){ alert(msg); }
+  function notify(msg, type){
+    try{ if(typeof toastMsg === 'function') toastMsg(msg); }catch(e){}
+    showContractSaveFeedback(msg, type || 'info');
+  }
+
+  function showContractSaveFeedback(msg, type){
+    var box = document.getElementById('jmContractSaveFeedback');
+    if(!box){
+      box = document.createElement('div');
+      box.id = 'jmContractSaveFeedback';
+      box.style.cssText = 'position:fixed;right:18px;bottom:78px;z-index:999999;background:#fff;color:#10233f;border:1px solid #dbe7f3;border-radius:18px;padding:14px 16px;box-shadow:0 18px 45px rgba(0,0,0,.22);font-weight:900;max-width:320px;display:none;transform:translateY(10px);opacity:0;transition:.22s ease';
+      document.body.appendChild(box);
+    }
+
+    var icon = type === 'success' ? '✅' : (type === 'error' ? '⚠️' : '⏳');
+    box.innerHTML = icon + ' ' + msg;
+    box.style.display = 'block';
+
+    requestAnimationFrame(function(){
+      box.style.opacity = '1';
+      box.style.transform = 'translateY(0)';
+    });
+
+    clearTimeout(box._timer);
+    box._timer = setTimeout(function(){
+      box.style.opacity = '0';
+      box.style.transform = 'translateY(10px)';
+      setTimeout(function(){ box.style.display = 'none'; }, 250);
+    }, type === 'success' ? 3200 : 4200);
+  }
+
+  function setContractButtonLoading(loading, success){
+    var buttons = [
+      document.getElementById('jmSaveExactContractPortalBtn'),
+      document.getElementById('jmFloatingContractSaveBtn')
+    ].filter(Boolean);
+
+    buttons.forEach(function(btn){
+      if(loading){
+        btn.disabled = true;
+        btn.dataset.oldText = btn.textContent;
+        btn.textContent = 'Salvando...';
+        btn.style.background = '#b67c36';
+        btn.style.transform = 'scale(.98)';
+      }else if(success){
+        btn.disabled = false;
+        btn.textContent = 'Contrato salvo ✓';
+        btn.style.background = '#16a34a';
+        btn.style.transform = 'scale(1)';
+        setTimeout(function(){
+          btn.textContent = btn.dataset.oldText || 'Salvar contrato no portal';
+        }, 2400);
+      }else{
+        btn.disabled = false;
+        btn.textContent = btn.dataset.oldText || 'Salvar contrato no portal';
+        btn.style.background = '#16a34a';
+        btn.style.transform = 'scale(1)';
+      }
+    });
   }
 
   function proposalIsVisible(){
@@ -5119,17 +5175,22 @@ init();
   }
 
   async function saveExactContractToPortal(){
+    setContractButtonLoading(true, false);
+    showContractSaveFeedback('Salvando contrato no portal...', 'info');
+
     var s = getState();
     var html = currentContractHtml();
 
     if(!html || html.indexOf('contractDoc') < 0){
-      notify('Abra o contrato primeiro para salvar no portal.');
+      setContractButtonLoading(false, false);
+      notify('Abra o contrato primeiro para salvar no portal.', 'error');
       return;
     }
 
     var b = findBudgetForContract();
     if(!b){
-      notify('Não consegui identificar o cliente/orçamento deste contrato.');
+      setContractButtonLoading(false, false);
+      notify('Não consegui identificar o cliente/orçamento deste contrato.', 'error');
       return;
     }
 
@@ -5166,7 +5227,14 @@ init();
     try{ localStorage.setItem('jm_v14_estavel', JSON.stringify(s)); }catch(e){}
 
     var ok = await forceCloudSave();
-    notify(ok ? 'Contrato exato salvo na nuvem para o portal.' : 'Contrato salvo localmente. Clique em “Sincronizar agora” na aba Nuvem.');
+
+    if(ok){
+      setContractButtonLoading(false, true);
+      notify('Contrato salvo na nuvem e disponível no portal do cliente.', 'success');
+    }else{
+      setContractButtonLoading(false, false);
+      notify('Contrato salvo localmente. Clique em “Sincronizar agora” na aba Nuvem.', 'error');
+    }
   }
 
   function removeButtons(){
@@ -5196,7 +5264,7 @@ init();
       btn.className = 'btn primary';
       btn.type = 'button';
       btn.textContent = 'Salvar contrato no portal';
-      btn.style.cssText = 'margin-left:8px;background:#16a34a!important;color:#fff!important;border-color:#16a34a!important;';
+      btn.style.cssText = 'margin-left:8px;background:#16a34a!important;color:#fff!important;border-color:#16a34a!important;box-shadow:0 10px 24px rgba(22,163,74,.22);transition:.22s ease;'; btn.onmouseenter=function(){this.style.transform='translateY(-2px)'}; btn.onmouseleave=function(){this.style.transform='translateY(0)'};
       btn.onclick = saveExactContractToPortal;
       target.appendChild(btn);
     }
@@ -5207,7 +5275,7 @@ init();
       float.id = 'jmFloatingContractSaveBtn';
       float.type = 'button';
       float.textContent = 'Salvar contrato no portal';
-      float.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:999999;border:0;border-radius:999px;padding:14px 18px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer;box-shadow:0 18px 40px rgba(0,0,0,.25)';
+      float.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:999999;border:0;border-radius:999px;padding:14px 18px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer;box-shadow:0 18px 40px rgba(0,0,0,.25);transition:.22s ease'; float.onmouseenter=function(){this.style.transform='translateY(-3px)'}; float.onmouseleave=function(){this.style.transform='translateY(0)'};
       float.onclick = saveExactContractToPortal;
       document.body.appendChild(float);
     }
