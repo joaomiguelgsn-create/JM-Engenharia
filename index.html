@@ -5457,7 +5457,7 @@ init();
         applyFilter(sec);
       }
     });
-    badgeSameClients();
+    // badgeSameClients desativado para manter a tabela limpa
   }
 
   setInterval(setup, 1200);
@@ -5482,41 +5482,62 @@ init();
 .jmDomFilterBar input,
 .jmDomFilterBar select{
   width:100%;
-  border:1px solid rgba(255,255,255,.18);
-  background:rgba(255,255,255,.08);
-  color:#f8fafc;
+  border:1px solid rgba(182,124,54,.35);
+  background:#ffffff!important;
+  color:#10233f!important;
   border-radius:16px;
   padding:13px 14px;
   font-weight:850;
   outline:none;
+  box-shadow:0 8px 22px rgba(16,35,63,.08);
 }
 .jmDomFilterBar input::placeholder{
-  color:rgba(248,250,252,.60);
+  color:#64748b!important;
 }
 .jmDomFilterBar select option{
   color:#111827;
+  background:#ffffff;
 }
 .jmDomFilterHint{
   margin:8px 0 0;
-  color:#a9bad0;
+  color:#334155!important;
   font-size:13px;
+  font-weight:650;
 }
 .sameClientBadge{
-  display:inline-flex;
-  margin-top:6px;
-  padding:5px 8px;
-  border-radius:999px;
-  background:rgba(79,195,255,.16);
-  border:1px solid rgba(79,195,255,.28);
-  color:#c7ecff;
-  font-size:11px;
-  font-weight:900;
+  display:none!important;
 }
 .jmFilterEmpty{
   margin-top:12px;
 }
 @media(max-width:800px){
   .jmDomFilterBar{grid-template-columns:1fr}
+}
+</style>
+
+
+<style>
+/* Ajuste visual dos filtros — legibilidade */
+.jmDomFilterBar input,
+.jmDomFilterBar select,
+.clientBudgetToolbar input,
+.clientBudgetToolbar select{
+  background:#fff!important;
+  color:#10233f!important;
+  border:1px solid rgba(182,124,54,.38)!important;
+  box-shadow:0 8px 22px rgba(16,35,63,.08)!important;
+}
+.jmDomFilterBar input::placeholder,
+.clientBudgetToolbar input::placeholder{
+  color:#64748b!important;
+}
+.jmDomFilterHint,
+.clientBudgetHint{
+  color:#334155!important;
+  font-weight:650!important;
+}
+.sameClientBadge{
+  display:none!important;
 }
 </style>
 
