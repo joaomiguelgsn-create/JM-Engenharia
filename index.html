@@ -5455,4 +5455,81 @@ init();
 }
 </style>
 
+
+<script>
+/* PATCH JM NETO — salvar valor final exato do orçamento na nuvem */
+(function(){
+  if(window.__JM_SAVE_EXACT_TOTAL_VALUE__) return;
+  window.__JM_SAVE_EXACT_TOTAL_VALUE__ = true;
+
+  function updateExactValues(){
+    try{
+      if(!window.state || !Array.isArray(state.budgets) || typeof calcFrom !== 'function') return;
+
+      state.budgets.forEach(function(b){
+        try{
+          var c = calcFrom(b);
+          var final = Number(c && c.final || 0);
+          if(final > 0){
+            b.valorTotalPortal = final;
+            b.valorFinal = final;
+            b.final = final;
+            b.total = final;
+          }
+
+          b.valorPagoPortal = Number(b.received || b.recebido || b.valorPago || 0);
+        }catch(e){}
+      });
+    }catch(e){}
+  }
+
+  function persistExactValues(){
+    updateExactValues();
+
+    try{ localStorage.setItem('jm_v15_online_backup', JSON.stringify(state)); }catch(e){}
+    try{ localStorage.setItem('jm_v14_estavel', JSON.stringify(state)); }catch(e){}
+
+    try{
+      if(typeof queueCloudSave === 'function') queueCloudSave();
+    }catch(e){}
+  }
+
+  function install(){
+    if(typeof window.renderAll === 'function' && !window.renderAll.__jmExactValuePatched){
+      var originalRenderAll = window.renderAll;
+      window.renderAll = function(){
+        updateExactValues();
+        return originalRenderAll.apply(this, arguments);
+      };
+      window.renderAll.__jmExactValuePatched = true;
+    }
+
+    if(typeof window.saveBudget === 'function' && !window.saveBudget.__jmExactValuePatched){
+      var originalSaveBudget = window.saveBudget;
+      window.saveBudget = function(){
+        var result = originalSaveBudget.apply(this, arguments);
+        setTimeout(persistExactValues, 300);
+        return result;
+      };
+      window.saveBudget.__jmExactValuePatched = true;
+    }
+
+    if(typeof window.addPayment === 'function' && !window.addPayment.__jmExactValuePatched){
+      var originalAddPayment = window.addPayment;
+      window.addPayment = function(){
+        var result = originalAddPayment.apply(this, arguments);
+        setTimeout(persistExactValues, 300);
+        return result;
+      };
+      window.addPayment.__jmExactValuePatched = true;
+    }
+
+    updateExactValues();
+  }
+
+  setTimeout(install, 600);
+  setInterval(install, 2500);
+})();
+</script>
+
 </body></html>
