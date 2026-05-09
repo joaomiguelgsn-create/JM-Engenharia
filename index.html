@@ -5316,39 +5316,29 @@ init();
 </script>
 
 
-
-
-
 <script>
-/* PATCH JM NETO — filtros visuais robustos em todas as abas */
+/* PATCH JM NETO — filtro seguro apenas em Clientes e Orçamentos */
 (function(){
-  if(window.__JM_DOM_FILTERS_ALL_TABS__) return;
-  window.__JM_DOM_FILTERS_ALL_TABS__ = true;
-
-  const sections = [
-    {id:'clientes', label:'Buscar em clientes e orçamentos'},
-    {id:'projetos', label:'Buscar em projetos'},
-    {id:'tarefas', label:'Buscar em tarefas'},
-    {id:'financeiro', label:'Buscar no financeiro'},
-    {id:'anexos', label:'Buscar em anexos'}
-  ];
+  if(window.__JM_SAFE_CLIENT_FILTER_ONLY__) return;
+  window.__JM_SAFE_CLIENT_FILTER_ONLY__ = true;
 
   function norm(v){
     return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
   }
 
-  function makeTools(sec, cfg){
-    if(!sec || sec.querySelector('.jmDomFilterTools')) return;
+  function ensureClientFilter(){
+    var sec = document.getElementById('clientes');
+    if(!sec || document.getElementById('jmClientOnlyFilter')) return;
 
-    const card = sec.querySelector('.card') || sec;
-    const title = card.querySelector('h3') || sec.querySelector('h3');
+    var card = sec.querySelector('.card') || sec;
+    var h3 = card.querySelector('h3');
 
-    const tools = document.createElement('div');
-    tools.className = 'jmDomFilterTools';
-    tools.innerHTML = `
-      <div class="jmDomFilterBar">
-        <input type="search" class="jmDomFilterInput" placeholder="${cfg.label}...">
-        <select class="jmDomFilterStatus">
+    var box = document.createElement('div');
+    box.id = 'jmClientOnlyFilter';
+    box.innerHTML = `
+      <div class="jmClientFilterBar">
+        <input id="jmClientSearchInput" type="search" placeholder="Buscar por cliente, CPF, telefone, cidade, endereço ou projeto...">
+        <select id="jmClientStatusFilter">
           <option value="">Todos</option>
           <option value="aberto">Abertos</option>
           <option value="fechado">Fechados</option>
@@ -5359,130 +5349,86 @@ init();
           <option value="cancelado">Cancelados</option>
         </select>
       </div>
-      <p class="jmDomFilterHint">Use nome, CPF, telefone, cidade, endereço, projeto ou status. Projetos do mesmo cliente podem ser diferenciados pelo endereço.</p>
+      <p class="jmClientFilterHint">Use o endereço para diferenciar projetos do mesmo cliente.</p>
     `;
 
-    if(title) title.insertAdjacentElement('afterend', tools);
-    else card.insertBefore(tools, card.firstChild);
+    if(h3) h3.insertAdjacentElement('afterend', box);
+    else card.insertBefore(box, card.firstChild);
 
-    tools.querySelector('input').addEventListener('input', () => applyFilter(sec));
-    tools.querySelector('select').addEventListener('change', () => applyFilter(sec));
+    var input = document.getElementById('jmClientSearchInput');
+    var select = document.getElementById('jmClientStatusFilter');
+
+    if(input) input.addEventListener('input', filterClientRows);
+    if(select) select.addEventListener('change', filterClientRows);
   }
 
-  function candidates(sec){
-    if(sec.id === 'clientes'){
-      return Array.from(sec.querySelectorAll('#budgetRows tr:not(.budgetGroupRow)'));
-    }
-    if(sec.id === 'projetos'){
-      return Array.from(sec.querySelectorAll('#projectRows > *'));
-    }
-    if(sec.id === 'tarefas'){
-      return Array.from(sec.querySelectorAll('#tasksList > *, #taskProjects > *'));
-    }
-    if(sec.id === 'financeiro'){
-      return Array.from(sec.querySelectorAll('#financeRows > *, #financeRows tr'));
-    }
-    if(sec.id === 'anexos'){
-      return Array.from(sec.querySelectorAll('#attachProjects > *, #attachmentsList > *, #attachList > *'));
-    }
-    return [];
-  }
+  function filterClientRows(){
+    var input = document.getElementById('jmClientSearchInput');
+    var select = document.getElementById('jmClientStatusFilter');
+    var q = norm(input && input.value);
+    var s = norm(select && select.value);
 
-  function applyFilter(sec){
-    const tools = sec.querySelector('.jmDomFilterTools');
-    if(!tools) return;
+    var rows = Array.from(document.querySelectorAll('#budgetRows tr:not(.budgetGroupRow)'));
+    var groups = Array.from(document.querySelectorAll('#budgetRows tr.budgetGroupRow'));
+    var visible = 0;
 
-    const q = norm(tools.querySelector('input')?.value || '');
-    const status = norm(tools.querySelector('select')?.value || '');
-    const items = candidates(sec);
-
-    let visible = 0;
-
-    items.forEach(el => {
-      const text = norm(el.textContent);
-      const okQ = !q || text.includes(q);
-      const okS = !status || text.includes(status);
-      const show = okQ && okS;
-
-      el.style.display = show ? '' : 'none';
+    rows.forEach(function(row){
+      var text = norm(row.textContent);
+      var okQ = !q || text.includes(q);
+      var okS = !s || text.includes(s);
+      var show = okQ && okS;
+      row.style.display = show ? '' : 'none';
       if(show) visible++;
     });
 
-    let msg = sec.querySelector('.jmFilterEmpty');
+    groups.forEach(function(group){
+      var next = group.nextElementSibling;
+      var hasVisible = false;
+      while(next && !next.classList.contains('budgetGroupRow')){
+        if(next.style.display !== 'none') { hasVisible = true; break; }
+        next = next.nextElementSibling;
+      }
+      group.style.display = hasVisible ? '' : 'none';
+    });
+
+    var msg = document.getElementById('jmClientFilterEmpty');
     if(!msg){
       msg = document.createElement('p');
-      msg.className = 'jmFilterEmpty muted';
-      msg.textContent = 'Nenhum item encontrado com esse filtro.';
-      const card = sec.querySelector('.card') || sec;
-      card.appendChild(msg);
+      msg.id = 'jmClientFilterEmpty';
+      msg.className = 'muted';
+      msg.textContent = 'Nenhum orçamento encontrado com esse filtro.';
+      var tbody = document.getElementById('budgetRows');
+      if(tbody && tbody.parentElement) tbody.parentElement.insertAdjacentElement('afterend', msg);
     }
-    msg.style.display = items.length && !visible ? 'block' : 'none';
+    msg.style.display = rows.length && !visible ? 'block' : 'none';
   }
 
-  function badgeSameClients(){
-    try{
-      const rows = Array.from(document.querySelectorAll('#budgetRows tr:not(.budgetGroupRow)'));
-      if(!rows.length || !window.state || !Array.isArray(state.budgets)) return;
-
-      const counts = {};
-      state.budgets.forEach(b => {
-        const key = String(b.cpfcnpj || b.cpfCnpj || b.cliente || '').replace(/\D/g,'') || norm(b.cliente);
-        if(key) counts[key] = (counts[key] || 0) + 1;
-      });
-
-      rows.forEach(row => {
-        const cell = row.querySelector('td:first-child');
-        if(!cell || cell.querySelector('.sameClientBadge')) return;
-
-        const rowText = norm(row.textContent);
-        const b = state.budgets.find(x => rowText.includes(norm(x.cliente || '')) && rowText.includes(norm((Array.isArray(x.projetos)?x.projetos.join(' '):x.projetos)||'')));
-        if(!b) return;
-
-        const key = String(b.cpfcnpj || b.cpfCnpj || b.cliente || '').replace(/\D/g,'') || norm(b.cliente);
-        if(counts[key] > 1){
-          const badge = document.createElement('span');
-          badge.className = 'sameClientBadge';
-          badge.textContent = 'mesmo cliente • ' + counts[key] + ' projetos';
-          cell.appendChild(badge);
-        }
-      });
-    }catch(e){}
+  function install(){
+    ensureClientFilter();
+    filterClientRows();
   }
 
-  function setup(){
-    sections.forEach(cfg => {
-      const sec = document.getElementById(cfg.id);
-      if(sec){
-        makeTools(sec, cfg);
-        applyFilter(sec);
-      }
-    });
-    // badgeSameClients desativado para manter a tabela limpa
-  }
-
-  setInterval(setup, 1200);
-
+  setInterval(install, 1000);
   try{
-    const obs = new MutationObserver(setup);
+    var obs = new MutationObserver(install);
     obs.observe(document.documentElement, {childList:true, subtree:true});
   }catch(e){}
-
-  setup();
+  install();
 })();
 </script>
 <style>
-.jmDomFilterTools{
+#jmClientOnlyFilter{
   margin:12px 0 16px;
 }
-.jmDomFilterBar{
+.jmClientFilterBar{
   display:grid;
   grid-template-columns:1fr 190px;
   gap:12px;
 }
-.jmDomFilterBar input,
-.jmDomFilterBar select{
+.jmClientFilterBar input,
+.jmClientFilterBar select{
   width:100%;
-  border:1px solid rgba(182,124,54,.35);
+  border:1px solid rgba(182,124,54,.38)!important;
   background:#ffffff!important;
   color:#10233f!important;
   border-radius:16px;
@@ -5491,53 +5437,21 @@ init();
   outline:none;
   box-shadow:0 8px 22px rgba(16,35,63,.08);
 }
-.jmDomFilterBar input::placeholder{
+.jmClientFilterBar input::placeholder{
   color:#64748b!important;
 }
-.jmDomFilterBar select option{
+.jmClientFilterBar select option{
   color:#111827;
-  background:#ffffff;
+  background:#fff;
 }
-.jmDomFilterHint{
+.jmClientFilterHint{
   margin:8px 0 0;
   color:#334155!important;
   font-size:13px;
   font-weight:650;
 }
-.sameClientBadge{
-  display:none!important;
-}
-.jmFilterEmpty{
+#jmClientFilterEmpty{
   margin-top:12px;
-}
-@media(max-width:800px){
-  .jmDomFilterBar{grid-template-columns:1fr}
-}
-</style>
-
-
-<style>
-/* Ajuste visual dos filtros — legibilidade */
-.jmDomFilterBar input,
-.jmDomFilterBar select,
-.clientBudgetToolbar input,
-.clientBudgetToolbar select{
-  background:#fff!important;
-  color:#10233f!important;
-  border:1px solid rgba(182,124,54,.38)!important;
-  box-shadow:0 8px 22px rgba(16,35,63,.08)!important;
-}
-.jmDomFilterBar input::placeholder,
-.clientBudgetToolbar input::placeholder{
-  color:#64748b!important;
-}
-.jmDomFilterHint,
-.clientBudgetHint{
-  color:#334155!important;
-  font-weight:650!important;
-}
-.sameClientBadge{
-  display:none!important;
 }
 </style>
 
