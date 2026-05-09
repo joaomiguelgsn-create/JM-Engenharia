@@ -5025,174 +5025,223 @@ init();
 
 
 
-<script>
-/* PATCH JM NETO — salvar contrato exato no Supabase para o portal do cliente */
-(function(){
-  if(window.__JM_SAVE_EXACT_CONTRACT_SUPABASE_V2__) return;
-  window.__JM_SAVE_EXACT_CONTRACT_SUPABASE_V2__ = true;
 
-  function jmState(){
-    try{
-      if(typeof state !== 'undefined' && state) window.state = state;
-    }catch(e){}
+
+
+<script>
+/* PATCH JM NETO — V3 salvar contrato exato no portal */
+(function(){
+  if(window.__JM_EXACT_CONTRACT_PORTAL_V3__) return;
+  window.__JM_EXACT_CONTRACT_PORTAL_V3__ = true;
+
+  function getState(){
+    try{ if(typeof state !== 'undefined' && state) window.state = state; }catch(e){}
     if(!window.state) window.state = {};
     if(!Array.isArray(window.state.budgets)) window.state.budgets = [];
     if(!Array.isArray(window.state.contracts)) window.state.contracts = [];
     return window.state;
   }
 
-  function jmToast(msg){
+  function notify(msg){
     try{
       if(typeof toastMsg === 'function') toastMsg(msg);
       else alert(msg);
     }catch(e){ alert(msg); }
   }
 
-  async function jmForceSupabaseSave(){
-    try{
-      var s = jmState();
+  function currentContractHtml(){
+    var proposal = document.getElementById('proposalPrint');
+    if(proposal && proposal.innerHTML && proposal.innerHTML.indexOf('contractDoc') >= 0){
+      return proposal.innerHTML;
+    }
 
-      if(window.sb && window.cloudUser){
-        var payload = {
-          user_id: window.cloudUser.id,
-          data: s,
-          updated_at: new Date().toISOString()
-        };
+    var doc = document.querySelector('.contractDoc');
+    if(doc){
+      return doc.outerHTML;
+    }
 
-        var res = await window.sb.from('jm_state').upsert(payload, {onConflict:'user_id'});
-        if(res && res.error) throw res.error;
-        return true;
+    return '';
+  }
+
+  function findBudgetForContract(){
+    var s = getState();
+
+    // 1) selectedProject costuma guardar o projeto/cliente selecionado
+    if(s.selectedProject){
+      var bySel = s.budgets.find(function(b){ return String(b.id) === String(s.selectedProject); });
+      if(bySel) return bySel;
+    }
+
+    // 2) tenta descobrir pelo nome do cliente dentro do contrato
+    var html = currentContractHtml();
+    if(html){
+      for(var i=0;i<s.budgets.length;i++){
+        var b=s.budgets[i];
+        if(b && b.cliente && html.indexOf(String(b.cliente)) >= 0) return b;
       }
+    }
 
-      if(window.supabase && window.JM_SUPABASE_URL && window.JM_SUPABASE_ANON_KEY){
-        var client = window.supabase.createClient(window.JM_SUPABASE_URL, window.JM_SUPABASE_ANON_KEY);
-        var sessionRes = await client.auth.getSession();
-        var user = sessionRes && sessionRes.data && sessionRes.data.session && sessionRes.data.session.user;
+    // 3) fallback: último orçamento com contrato criado
+    var withContract = s.budgets.filter(function(b){ return b.contractCreatedAt || b.status === 'Fechado'; });
+    return withContract[0] || s.budgets[0] || null;
+  }
 
-        if(user){
-          var payload2 = {
-            user_id: user.id,
-            data: s,
-            updated_at: new Date().toISOString()
-          };
-
-          var res2 = await client.from('jm_state').upsert(payload2, {onConflict:'user_id'});
-          if(res2 && res2.error) throw res2.error;
+  async function forceCloudSave(){
+    try{
+      // Preferir funções internas do sistema, pois elas têm acesso ao sb/cloudUser via escopo original.
+      try{
+        if(typeof syncCloudNow === 'function'){
+          await syncCloudNow();
           return true;
         }
-      }
+      }catch(e1){ console.warn('syncCloudNow falhou', e1); }
 
-      try{ if(typeof queueCloudSave === 'function') queueCloudSave(); }catch(e){}
-      try{ if(typeof syncCloudNow === 'function') await syncCloudNow(); }catch(e){}
-      return false;
-    }catch(err){
-      console.error('Erro ao salvar contrato exato no Supabase:', err);
-      jmToast('Contrato salvo localmente, mas houve erro ao enviar para a nuvem: ' + (err.message || err));
-      return false;
-    }
-  }
-
-  async function jmSaveExactContractHTML(id){
-    try{
-      var s = jmState();
-      var print = document.getElementById('proposalPrint');
-      var html = print ? print.innerHTML : '';
-
-      if(!html || html.indexOf('contractDoc') < 0){
-        jmToast('Abra/visualize o contrato antes de salvar no portal.');
-        return;
-      }
-
-      var now = new Date().toISOString();
-      var b = s.budgets.find(function(x){ return String(x.id) === String(id); });
-
-      if(!b){
-        jmToast('Orçamento/cliente não encontrado para salvar contrato.');
-        return;
-      }
-
-      var existing = s.contracts.find(function(c){
-        return String(c.budgetId) === String(id);
-      });
-
-      if(!existing){
-        existing = {
-          id: 'ct_' + id + '_' + Date.now().toString(36),
-          budgetId: id,
-          createdAt: b.contractCreatedAt || now,
-          createdAtMs: Date.now()
-        };
-        s.contracts.unshift(existing);
-      }
-
-      existing.html = html;
-      existing.contractHtml = html;
-      existing.exactHtml = html;
-      existing.savedExactHtml = true;
-      existing.updatedAt = now;
-
-      b.contractCreatedAt = b.contractCreatedAt || now;
-      b.contractHtml = html;
-      b.exactContractHtml = html;
-      b.portalContractHtml = html;
-
-      try{ localStorage.setItem('jm_v15_online_backup', JSON.stringify(s)); }catch(e){}
-      try{ localStorage.setItem('jm_v14_estavel', JSON.stringify(s)); }catch(e){}
-
-      var ok = await jmForceSupabaseSave();
-
-      if(ok){
-        jmToast('Contrato exato salvo na nuvem para o portal do cliente.');
-      }else{
-        jmToast('Contrato salvo. Clique em “Sincronizar agora” na aba Nuvem para enviar ao portal.');
-      }
-    }catch(err){
-      console.error('Erro ao salvar contrato exato:', err);
-      jmToast('Erro ao salvar contrato exato: ' + (err.message || err));
-    }
-  }
-
-  function addSaveButton(id){
-    setTimeout(function(){
       try{
-        var area = document.querySelector('.contractPrintActions .btns') || document.querySelector('.contractPrintActions') || document.getElementById('proposalPrint');
-        if(!area || document.getElementById('saveExactContractPortalBtn')) return;
+        if(typeof queueCloudSave === 'function'){
+          queueCloudSave();
+          return true;
+        }
+      }catch(e2){ console.warn('queueCloudSave falhou', e2); }
 
-        var btn = document.createElement('button');
-        btn.id = 'saveExactContractPortalBtn';
-        btn.className = 'btn primary';
-        btn.type = 'button';
-        btn.textContent = 'Salvar contrato no portal';
-        btn.onclick = function(){ jmSaveExactContractHTML(id); };
-
-        if(area.appendChild) area.appendChild(btn);
-      }catch(e){}
-    }, 500);
+      return false;
+    }catch(err){
+      console.error(err);
+      return false;
+    }
   }
 
-  function install(){
-    if(typeof window.openContract !== 'function'){
-      setTimeout(install, 300);
+  async function saveExactContractToPortal(){
+    var s = getState();
+    var html = currentContractHtml();
+
+    if(!html || html.indexOf('contractDoc') < 0){
+      notify('Não encontrei o contrato aberto. Abra o contrato primeiro e tente novamente.');
       return;
     }
 
-    if(window.openContract.__jmExactPatched) return;
+    var b = findBudgetForContract();
 
-    var original = window.openContract;
-    function patchedOpenContract(id){
-      var result = original.apply(this, arguments);
-      addSaveButton(id);
-      setTimeout(function(){ jmSaveExactContractHTML(id); }, 900);
-      return result;
+    if(!b){
+      notify('Não consegui identificar o cliente/orçamento deste contrato.');
+      return;
     }
 
-    patchedOpenContract.__jmExactPatched = true;
-    window.openContract = patchedOpenContract;
+    var now = new Date().toISOString();
+    var id = b.id;
+
+    var existing = s.contracts.find(function(c){
+      return String(c.budgetId) === String(id);
+    });
+
+    if(!existing){
+      existing = {
+        id: 'ct_' + id + '_' + Date.now().toString(36),
+        budgetId: id,
+        createdAt: b.contractCreatedAt || now,
+        createdAtMs: Date.now()
+      };
+      s.contracts.unshift(existing);
+    }
+
+    existing.html = html;
+    existing.contractHtml = html;
+    existing.exactHtml = html;
+    existing.portalContractHtml = html;
+    existing.savedExactHtml = true;
+    existing.updatedAt = now;
+
+    b.contractCreatedAt = b.contractCreatedAt || now;
+    b.contractHtml = html;
+    b.exactContractHtml = html;
+    b.portalContractHtml = html;
+
+    try{ localStorage.setItem('jm_v15_online_backup', JSON.stringify(s)); }catch(e){}
+    try{ localStorage.setItem('jm_v14_estavel', JSON.stringify(s)); }catch(e){}
+
+    var ok = await forceCloudSave();
+
+    if(ok){
+      notify('Contrato exato salvo. Aguarde alguns segundos e teste no portal do cliente.');
+    }else{
+      notify('Contrato salvo localmente. Vá em Nuvem e clique em “Sincronizar agora”.');
+    }
   }
 
-  install();
+  function injectButton(){
+    var html = currentContractHtml();
+    if(!html || html.indexOf('contractDoc') < 0) return;
 
-  window.jmSaveExactContractHTML = jmSaveExactContractHTML;
+    var target =
+      document.querySelector('.contractPrintActions .btns') ||
+      document.querySelector('.contractPrintActions') ||
+      document.getElementById('proposalPrint');
+
+    if(!target) return;
+
+    if(document.getElementById('jmSaveExactContractPortalBtn')) return;
+
+    var btn = document.createElement('button');
+    btn.id = 'jmSaveExactContractPortalBtn';
+    btn.type = 'button';
+    btn.textContent = 'Salvar contrato no portal';
+    btn.style.cssText = 'margin-left:8px;border:0;border-radius:14px;padding:12px 16px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer;box-shadow:0 10px 24px rgba(22,163,74,.22)';
+    btn.onclick = saveExactContractToPortal;
+
+    try{ target.appendChild(btn); }catch(e){}
+  }
+
+  // Botão flutuante de emergência, aparece quando há contrato na tela
+  function ensureFloatingButton(){
+    if(document.getElementById('jmFloatingContractSaveBtn')) return;
+
+    var btn = document.createElement('button');
+    btn.id = 'jmFloatingContractSaveBtn';
+    btn.type = 'button';
+    btn.textContent = 'Salvar contrato no portal';
+    btn.style.cssText = 'display:none;position:fixed;right:18px;bottom:18px;z-index:999999;border:0;border-radius:999px;padding:14px 18px;background:#16a34a;color:#fff;font-weight:900;cursor:pointer;box-shadow:0 18px 40px rgba(0,0,0,.25)';
+    btn.onclick = saveExactContractToPortal;
+    document.body.appendChild(btn);
+  }
+
+  function toggleFloatingButton(){
+    ensureFloatingButton();
+    var btn = document.getElementById('jmFloatingContractSaveBtn');
+    if(btn) btn.style.display = currentContractHtml() ? 'block' : 'none';
+  }
+
+  function tick(){
+    injectButton();
+    toggleFloatingButton();
+  }
+
+  setInterval(tick, 800);
+
+  try{
+    var obs = new MutationObserver(tick);
+    obs.observe(document.documentElement || document.body, {childList:true, subtree:true, attributes:true});
+  }catch(e){}
+
+  // Também tenta envolver openContract, mas não depende disso.
+  function wrapOpenContract(){
+    if(typeof window.openContract !== 'function'){
+      setTimeout(wrapOpenContract, 500);
+      return;
+    }
+
+    if(window.openContract.__jmPortalV3) return;
+
+    var original = window.openContract;
+    window.openContract = function(){
+      var result = original.apply(this, arguments);
+      setTimeout(tick, 500);
+      setTimeout(tick, 1200);
+      return result;
+    };
+    window.openContract.__jmPortalV3 = true;
+  }
+  wrapOpenContract();
+
+  window.jmSaveExactContractToPortal = saveExactContractToPortal;
 })();
 </script>
 
