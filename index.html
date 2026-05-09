@@ -5316,203 +5316,188 @@ init();
 </script>
 
 
+
+
+
 <script>
-/* PATCH JM NETO — busca e organização em Clientes e Orçamentos */
+/* PATCH JM NETO — filtros visuais robustos em todas as abas */
 (function(){
-  if(window.__JM_CLIENTES_ORCAMENTOS_FILTRO__) return;
-  window.__JM_CLIENTES_ORCAMENTOS_FILTRO__ = true;
+  if(window.__JM_DOM_FILTERS_ALL_TABS__) return;
+  window.__JM_DOM_FILTERS_ALL_TABS__ = true;
+
+  const sections = [
+    {id:'clientes', label:'Buscar em clientes e orçamentos'},
+    {id:'projetos', label:'Buscar em projetos'},
+    {id:'tarefas', label:'Buscar em tarefas'},
+    {id:'financeiro', label:'Buscar no financeiro'},
+    {id:'anexos', label:'Buscar em anexos'}
+  ];
 
   function norm(v){
-    return String(v || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g,'')
-      .toLowerCase()
-      .trim();
+    return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
   }
 
-  function txtBudget(b){
-    return norm([
-      b.cliente, b.cpfcnpj, b.cpfCnpj, b.telefone, b.cidade, b.endereco,
-      Array.isArray(b.projetos) ? b.projetos.join(' ') : b.projetos,
-      b.status, b.projectStatus, b.obs
-    ].join(' '));
-  }
+  function makeTools(sec, cfg){
+    if(!sec || sec.querySelector('.jmDomFilterTools')) return;
 
-  function ensureClientTools(){
-    var sec = document.getElementById('clientes');
-    if(!sec || document.getElementById('clientBudgetTools')) return;
+    const card = sec.querySelector('.card') || sec;
+    const title = card.querySelector('h3') || sec.querySelector('h3');
 
-    var card = sec.querySelector('.card') || sec;
-    var h3 = card.querySelector('h3');
+    const tools = document.createElement('div');
+    tools.className = 'jmDomFilterTools';
+    tools.innerHTML = `
+      <div class="jmDomFilterBar">
+        <input type="search" class="jmDomFilterInput" placeholder="${cfg.label}...">
+        <select class="jmDomFilterStatus">
+          <option value="">Todos</option>
+          <option value="aberto">Abertos</option>
+          <option value="fechado">Fechados</option>
+          <option value="ativo">Em andamento</option>
+          <option value="concluido">Concluídos</option>
+          <option value="pausado">Pausados</option>
+          <option value="perdido">Perdidos</option>
+          <option value="cancelado">Cancelados</option>
+        </select>
+      </div>
+      <p class="jmDomFilterHint">Use nome, CPF, telefone, cidade, endereço, projeto ou status. Projetos do mesmo cliente podem ser diferenciados pelo endereço.</p>
+    `;
 
-    var tools = document.createElement('div');
-    tools.id = 'clientBudgetTools';
-    tools.innerHTML =
-      '<div class="clientBudgetToolbar">' +
-        '<input id="clientBudgetSearch" placeholder="Buscar por cliente, CPF, telefone, cidade, endereço ou projeto...">' +
-        '<select id="clientBudgetStatus">' +
-          '<option value="Todos">Todos</option>' +
-          '<option value="Aberto">Abertos</option>' +
-          '<option value="Fechado">Fechados</option>' +
-          '<option value="Ativo">Em andamento</option>' +
-          '<option value="Concluído">Concluídos</option>' +
-          '<option value="Pausado">Pausados</option>' +
-          '<option value="Perdido">Perdidos</option>' +
-          '<option value="Cancelado">Cancelados</option>' +
-        '</select>' +
-      '</div>' +
-      '<p class="clientBudgetHint">Dica: se o mesmo cliente tiver mais de um projeto, use CPF, endereço ou tipo de projeto para diferenciar.</p>';
-
-    if(h3 && h3.parentNode) h3.insertAdjacentElement('afterend', tools);
+    if(title) title.insertAdjacentElement('afterend', tools);
     else card.insertBefore(tools, card.firstChild);
 
-    var input = document.getElementById('clientBudgetSearch');
-    var select = document.getElementById('clientBudgetStatus');
-
-    if(input) input.addEventListener('input', function(){
-      window.__JM_CLIENT_SEARCH = this.value;
-      if(typeof renderBudgets === 'function') renderBudgets();
-    });
-
-    if(select) select.addEventListener('change', function(){
-      window.__JM_CLIENT_STATUS = this.value;
-      if(typeof renderBudgets === 'function') renderBudgets();
-    });
+    tools.querySelector('input').addEventListener('input', () => applyFilter(sec));
+    tools.querySelector('select').addEventListener('change', () => applyFilter(sec));
   }
 
-  function matchesStatus(b, f){
-    if(!f || f === 'Todos') return true;
-    if(f === 'Aberto') return (b.status || 'Aberto') === 'Aberto';
-    if(f === 'Fechado') return (b.status || 'Aberto') === 'Fechado';
-    if(f === 'Ativo') return (b.projectStatus || 'Ativo') === 'Ativo' && (b.status || 'Aberto') === 'Fechado';
-    if(f === 'Concluído') return (b.projectStatus || '') === 'Concluído';
-    if(f === 'Pausado') return (b.projectStatus || '') === 'Pausado';
-    if(f === 'Perdido') return (b.status || '') === 'Perdido';
-    if(f === 'Cancelado') return (b.projectStatus || b.status || '') === 'Cancelado';
-    return true;
-  }
-
-  function duplicateLabelMap(list){
-    var map = {};
-    list.forEach(function(b){
-      var cpf = String(b.cpfcnpj || b.cpfCnpj || '').replace(/\D/g,'');
-      var key = cpf || norm(b.cliente);
-      if(!key) return;
-      map[key] = (map[key] || 0) + 1;
-    });
-    return map;
-  }
-
-  function applyDuplicateBadges(list){
-    setTimeout(function(){
-      try{
-        var map = duplicateLabelMap(window.state && state.budgets ? state.budgets : []);
-        var rows = document.querySelectorAll('#budgetRows tr:not(.budgetGroupRow)');
-        rows.forEach(function(row){
-          var nameCell = row.querySelector('td:first-child');
-          if(!nameCell || nameCell.querySelector('.sameClientBadge')) return;
-
-          var text = norm(nameCell.textContent);
-          var found = (window.state.budgets || []).find(function(b){
-            return text.includes(norm(b.cliente || ''));
-          });
-
-          if(!found) return;
-
-          var cpf = String(found.cpfcnpj || found.cpfCnpj || '').replace(/\D/g,'');
-          var key = cpf || norm(found.cliente);
-
-          if(map[key] > 1){
-            var badge = document.createElement('span');
-            badge.className = 'sameClientBadge';
-            badge.textContent = 'mesmo cliente • ' + map[key] + ' projetos';
-            nameCell.appendChild(badge);
-          }
-        });
-      }catch(e){}
-    }, 80);
-  }
-
-  function install(){
-    if(typeof window.renderBudgets !== 'function' || typeof window.budgetRow !== 'function'){
-      setTimeout(install, 400);
-      return;
+  function candidates(sec){
+    if(sec.id === 'clientes'){
+      return Array.from(sec.querySelectorAll('#budgetRows tr:not(.budgetGroupRow)'));
     }
+    if(sec.id === 'projetos'){
+      return Array.from(sec.querySelectorAll('#projectRows > *'));
+    }
+    if(sec.id === 'tarefas'){
+      return Array.from(sec.querySelectorAll('#tasksList > *, #taskProjects > *'));
+    }
+    if(sec.id === 'financeiro'){
+      return Array.from(sec.querySelectorAll('#financeRows > *, #financeRows tr'));
+    }
+    if(sec.id === 'anexos'){
+      return Array.from(sec.querySelectorAll('#attachProjects > *, #attachmentsList > *, #attachList > *'));
+    }
+    return [];
+  }
 
-    if(window.renderBudgets.__jmFiltered) return;
+  function applyFilter(sec){
+    const tools = sec.querySelector('.jmDomFilterTools');
+    if(!tools) return;
 
-    var originalBudgetRow = window.budgetRow;
+    const q = norm(tools.querySelector('input')?.value || '');
+    const status = norm(tools.querySelector('select')?.value || '');
+    const items = candidates(sec);
 
-    window.renderBudgets = function(){
-      ensureClientTools();
+    let visible = 0;
 
-      var q = norm(window.__JM_CLIENT_SEARCH || (document.getElementById('clientBudgetSearch') && document.getElementById('clientBudgetSearch').value) || '');
-      var f = window.__JM_CLIENT_STATUS || (document.getElementById('clientBudgetStatus') && document.getElementById('clientBudgetStatus').value) || 'Todos';
+    items.forEach(el => {
+      const text = norm(el.textContent);
+      const okQ = !q || text.includes(q);
+      const okS = !status || text.includes(status);
+      const show = okQ && okS;
 
-      var list = (window.state && state.budgets ? state.budgets : []).filter(function(b){
-        return (!q || txtBudget(b).includes(q)) && matchesStatus(b, f);
+      el.style.display = show ? '' : 'none';
+      if(show) visible++;
+    });
+
+    let msg = sec.querySelector('.jmFilterEmpty');
+    if(!msg){
+      msg = document.createElement('p');
+      msg.className = 'jmFilterEmpty muted';
+      msg.textContent = 'Nenhum item encontrado com esse filtro.';
+      const card = sec.querySelector('.card') || sec;
+      card.appendChild(msg);
+    }
+    msg.style.display = items.length && !visible ? 'block' : 'none';
+  }
+
+  function badgeSameClients(){
+    try{
+      const rows = Array.from(document.querySelectorAll('#budgetRows tr:not(.budgetGroupRow)'));
+      if(!rows.length || !window.state || !Array.isArray(state.budgets)) return;
+
+      const counts = {};
+      state.budgets.forEach(b => {
+        const key = String(b.cpfcnpj || b.cpfCnpj || b.cliente || '').replace(/\D/g,'') || norm(b.cliente);
+        if(key) counts[key] = (counts[key] || 0) + 1;
       });
 
-      var open = list.filter(function(b){ return (b.status || 'Aberto') === 'Aberto'; });
-      var archived = list.filter(function(b){ return (b.status || 'Aberto') !== 'Aberto'; });
+      rows.forEach(row => {
+        const cell = row.querySelector('td:first-child');
+        if(!cell || cell.querySelector('.sameClientBadge')) return;
 
-      var html = '';
+        const rowText = norm(row.textContent);
+        const b = state.budgets.find(x => rowText.includes(norm(x.cliente || '')) && rowText.includes(norm((Array.isArray(x.projetos)?x.projetos.join(' '):x.projetos)||'')));
+        if(!b) return;
 
-      if(open.length){
-        html += '<tr class="budgetGroupRow"><td colspan="6">Orçamentos em aberto — aparecem primeiro</td></tr>' +
-          open.map(function(b){ return originalBudgetRow(b,false); }).join('');
-      }
-
-      if(archived.length){
-        html += '<tr class="budgetGroupRow"><td colspan="6">Arquivados / fechados / perdidos</td></tr>' +
-          archived.map(function(b){ return originalBudgetRow(b,true); }).join('');
-      }
-
-      var rows = document.getElementById('budgetRows');
-
-      if(rows){
-        rows.innerHTML = html || '<tr><td colspan="6" class="muted">Nenhum orçamento encontrado com esse filtro.</td></tr>';
-      }
-
-      applyDuplicateBadges(list);
-    };
-
-    window.renderBudgets.__jmFiltered = true;
-
-    ensureClientTools();
-
-    try{ window.renderBudgets(); }catch(e){}
+        const key = String(b.cpfcnpj || b.cpfCnpj || b.cliente || '').replace(/\D/g,'') || norm(b.cliente);
+        if(counts[key] > 1){
+          const badge = document.createElement('span');
+          badge.className = 'sameClientBadge';
+          badge.textContent = 'mesmo cliente • ' + counts[key] + ' projetos';
+          cell.appendChild(badge);
+        }
+      });
+    }catch(e){}
   }
 
-  install();
+  function setup(){
+    sections.forEach(cfg => {
+      const sec = document.getElementById(cfg.id);
+      if(sec){
+        makeTools(sec, cfg);
+        applyFilter(sec);
+      }
+    });
+    badgeSameClients();
+  }
+
+  setInterval(setup, 1200);
+
+  try{
+    const obs = new MutationObserver(setup);
+    obs.observe(document.documentElement, {childList:true, subtree:true});
+  }catch(e){}
+
+  setup();
 })();
 </script>
 <style>
-.clientBudgetToolbar{
+.jmDomFilterTools{
+  margin:12px 0 16px;
+}
+.jmDomFilterBar{
   display:grid;
   grid-template-columns:1fr 190px;
   gap:12px;
-  margin:12px 0 8px;
 }
-.clientBudgetToolbar input,
-.clientBudgetToolbar select{
+.jmDomFilterBar input,
+.jmDomFilterBar select{
   width:100%;
-  border:1px solid rgba(255,255,255,.16);
+  border:1px solid rgba(255,255,255,.18);
   background:rgba(255,255,255,.08);
   color:#f8fafc;
   border-radius:16px;
   padding:13px 14px;
-  font-weight:800;
+  font-weight:850;
   outline:none;
 }
-.clientBudgetToolbar input::placeholder{
-  color:rgba(248,250,252,.58);
+.jmDomFilterBar input::placeholder{
+  color:rgba(248,250,252,.60);
 }
-.clientBudgetToolbar select option{
+.jmDomFilterBar select option{
   color:#111827;
 }
-.clientBudgetHint{
-  margin:0 0 14px;
+.jmDomFilterHint{
+  margin:8px 0 0;
   color:#a9bad0;
   font-size:13px;
 }
@@ -5527,8 +5512,11 @@ init();
   font-size:11px;
   font-weight:900;
 }
+.jmFilterEmpty{
+  margin-top:12px;
+}
 @media(max-width:800px){
-  .clientBudgetToolbar{grid-template-columns:1fr}
+  .jmDomFilterBar{grid-template-columns:1fr}
 }
 </style>
 
