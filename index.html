@@ -2160,7 +2160,7 @@ init();
               <div><small>Protocolo</small><b>${p.protocol || '-'}</b></div>
               <div><small>Etapas</small><b>${(p.steps || []).length}</b></div>
               <div><small>Movimentação</small><b>${p.move ? brDate(p.move) : p.date ? brDate(p.date) : '-'}</b></div>
-              <div><small>Parado há</small><b>${ds !== null ? ds + ' dia(s)' : '-'}</b></div>
+              <div><small>${paradoLabel}</small><b>${paradoValue}</b></div>
             </div>
 
             <button class="btn primary" onclick="openPrefEditor('${b.id}')">Abrir processo</button>
@@ -4859,6 +4859,11 @@ init();
 
 
 
+
+<style id="jm-prefeitura-nao-regularizado-style">
+.prefProjectCard.prefNaoRegularizado { border-left-color: #f59e0b !important; }
+.prefProjectCard.prefNaoRegularizado .prefMeta div:last-child b { color: #fbbf24 !important; }
+</style>
 <script id="jm-prefeitura-movimentacao-nao-regularizado-certo">
 /* ===== PATCH JM — "Não será regularizado" só como movimentação da Prefeitura ===== */
 (function(){
@@ -4941,8 +4946,11 @@ init();
       <div class="prefProjectsGrid">
         ${shown.map(b => {
           const p = findPref(b.id) || {status:'Não protocolado', protocol:'', steps:[]};
-          const ds = typeof daysSince === 'function' ? daysSince(p.move || p.date) : null;
-          return `<div class="prefProjectCard ${p.status==='Aprovado'?'prefApproved':''}">
+          const isNaoReg = p.status === STATUS_NAO_REG || (p.steps || []).some(st => st.name === NAO_REG);
+          const ds = (!isNaoReg && typeof daysSince === 'function') ? daysSince(p.move || p.date) : null;
+          const paradoLabel = isNaoReg ? 'Situação' : 'Parado há';
+          const paradoValue = isNaoReg ? 'Dispensado' : (ds !== null ? ds + ' dia(s)' : '-');
+          return `<div class="prefProjectCard ${p.status==='Aprovado'?'prefApproved':''} ${isNaoReg?'prefNaoRegularizado':''}">
             <div class="projectTopActions">
               <div><h4>${b.cliente || 'Projeto'}</h4><p class="mini">${(b.projetos || []).join(', ')}</p></div>
               <span class="pill ${prefClass(p.status)}">${p.status || 'Não protocolado'}</span>
