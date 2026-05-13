@@ -4946,11 +4946,13 @@ init();
       <div class="prefProjectsGrid">
         ${shown.map(b => {
           const p = findPref(b.id) || {status:'Não protocolado', protocol:'', steps:[]};
+          const isAprovado = p.status === 'Aprovado';
           const isNaoReg = p.status === STATUS_NAO_REG || (p.steps || []).some(st => st.name === NAO_REG);
-          const ds = (!isNaoReg && typeof daysSince === 'function') ? daysSince(p.move || p.date) : null;
-          const paradoLabel = isNaoReg ? 'Situação' : 'Parado há';
-          const paradoValue = isNaoReg ? 'Dispensado' : (ds !== null ? ds + ' dia(s)' : '-');
-          return `<div class="prefProjectCard ${p.status==='Aprovado'?'prefApproved':''} ${isNaoReg?'prefNaoRegularizado':''}">
+          const isEncerrado = isAprovado || isNaoReg;
+          const ds = (!isEncerrado && typeof daysSince === 'function') ? daysSince(p.move || p.date) : null;
+          const situacaoLabel = isAprovado ? 'Situação' : (isNaoReg ? 'Situação' : 'Parado há');
+          const situacaoValue = isAprovado ? 'Concluído' : (isNaoReg ? 'Dispensado' : (ds !== null ? ds + ' dia(s)' : '-'));
+          return `<div class="prefProjectCard ${isAprovado?'prefApproved':''} ${isNaoReg?'prefNaoRegularizado':''}">
             <div class="projectTopActions">
               <div><h4>${b.cliente || 'Projeto'}</h4><p class="mini">${(b.projetos || []).join(', ')}</p></div>
               <span class="pill ${prefClass(p.status)}">${p.status || 'Não protocolado'}</span>
@@ -4959,7 +4961,7 @@ init();
               <div><small>Protocolo</small><b>${p.protocol || '-'}</b></div>
               <div><small>Etapas</small><b>${(p.steps || []).length}</b></div>
               <div><small>Movimentação</small><b>${p.move ? bd(p.move) : p.date ? bd(p.date) : '-'}</b></div>
-              <div><small>Parado há</small><b>${ds !== null ? ds + ' dia(s)' : '-'}</b></div>
+              <div><small>${situacaoLabel}</small><b>${situacaoValue}</b></div>
             </div>
             <button class="btn primary" onclick="openPrefEditor('${b.id}')">Abrir processo</button>
           </div>`;
