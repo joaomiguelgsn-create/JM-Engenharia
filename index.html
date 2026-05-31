@@ -5631,4 +5631,149 @@ init();
 })();
 </script>
 
+
+
+<script id="jm-v49-payment-final-fix">
+(function(){
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const br = d => { if(!d) return 'A combinar'; const [y,m,day]=String(d).split('-'); return (y&&m&&day)?`${day}/${m}/${y}`:String(d); };
+  const moeda = v => Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const n = v => { const x=Number(String(v??'').replace(',','.')); return Number.isFinite(x)?x:0; };
+  const val = id => ($(id)?.value || '').trim();
+  const fire = el => { if(el) el.dispatchEvent(new Event('input',{bubbles:true})); };
+
+  function hideLegacyPaymentField(){
+    const legacy=$('paymentMethod');
+    if(legacy){
+      const f=legacy.closest('.field');
+      if(f) f.style.display='none';
+      legacy.disabled=true;
+    }
+    const custom=$('paymentCustomWrap');
+    if(custom) custom.style.display='none';
+    const due=$('paymentDue');
+    const dueWrap=due?.closest('.field');
+    if(dueWrap) dueWrap.style.display='none';
+  }
+
+  function getPlanFromUI(total){
+    const cond=val('jmPayCondition'), out=[];
+    if(cond==='avista') out.push({label:'Pagamento à vista',date:val('jmPaySingleDate'),value:total});
+    if(cond==='cinquenta') out.push({label:'Entrada - 50%',date:val('jmPayEntryDate'),value:total*.5},{label:'Pagamento final - 50%',date:val('jmPayFinalDate'),value:total*.5});
+    if(cond==='entrada_parcelas'){
+      const pct=Math.max(0,Math.min(100,n(val('jmPayEntryPct'))));
+      if(pct>0) out.push({label:`Entrada - ${pct}%`,date:val('jmPayEntryDate'),value:total*pct/100});
+      document.querySelectorAll('#jmPayRows .jmPayRow').forEach(r=>out.push({label:r.querySelector('.jmPayLabel')?.value||'Parcela',date:r.querySelector('.jmPayDate')?.value||'',value:n(r.querySelector('.jmPayValue')?.value)}));
+    }
+    if(cond==='etapas') document.querySelectorAll('#jmPayRows .jmPayRow').forEach(r=>out.push({label:r.querySelector('.jmPayLabel')?.value||'Etapa',date:r.querySelector('.jmPayDate')?.value||'',value:n(r.querySelector('.jmPayValue')?.value)}));
+    return out.filter(p=>p.label || p.date || p.value);
+  }
+
+  function planText(b){
+    const cond=b?.paymentCondition||'';
+    const custom=String(b?.paymentCustom||'').trim();
+    if(cond==='personalizado') return custom || 'Condição personalizada a combinar.';
+    const arr=Array.isArray(b?.paymentPlan)?b.paymentPlan:[];
+    if(!arr.length) return 'Condição de pagamento a combinar.';
+    return arr.map(p=>`${p.label||'Pagamento'}: ${moeda(p.value)}${p.date?' em '+br(p.date):''}`).join(' • ');
+  }
+
+  function planTable(b){
+    const arr=Array.isArray(b?.paymentPlan)?b.paymentPlan:[];
+    if(!arr.length) return '';
+    return `<div class="jmPaymentScheduleDoc"><h3>Cronograma de pagamentos</h3><table><thead><tr><th>Etapa</th><th>Data</th><th style="text-align:right">Valor</th></tr></thead><tbody>${arr.map(p=>`<tr><td>${esc(p.label||'Pagamento')}</td><td>${br(p.date)}</td><td style="text-align:right"><b>${moeda(p.value)}</b></td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  function enrichBudget(b){
+    if(!b) return b;
+    const total = (typeof calcFrom==='function') ? Number(calcFrom(b).final||0) : n(b.final||b.valor||0);
+    const cond=val('jmPayCondition') || b.paymentCondition || '';
+    b.paymentCondition=cond;
+    if(cond==='personalizado') b.paymentCustom=val('jmPayCustom') || b.paymentCustom || '';
+    const uiPlan = $('jmPayCondition') ? getPlanFromUI(total) : [];
+    b.paymentPlan = uiPlan.length ? uiPlan : (Array.isArray(b.paymentPlan)?b.paymentPlan:[]);
+    b.paymentDue = (b.paymentPlan.find(p=>p.date)||{}).date || b.paymentDue || '';
+    b.paymentMethod = planText(b); // compatibilidade com proposta, contrato, financeiro e demais abas antigas
+    return b;
+  }
+
+  function loadSavedPlan(b){
+    if(!b || !$('jmPayCondition')) return;
+    hideLegacyPaymentField();
+    const cond=b.paymentCondition || '';
+    $('jmPayCondition').value=cond;
+    $('jmPayCondition').dispatchEvent(new Event('change',{bubbles:true}));
+    setTimeout(()=>{
+      const arr=Array.isArray(b.paymentPlan)?b.paymentPlan:[];
+      if(cond==='personalizado') { if($('jmPayCustom')) $('jmPayCustom').value=b.paymentCustom||''; return; }
+      if(cond==='avista' && arr[0] && $('jmPaySingleDate')) $('jmPaySingleDate').value=arr[0].date||'';
+      if(cond==='cinquenta'){
+        if($('jmPayEntryDate')) $('jmPayEntryDate').value=arr[0]?.date||'';
+        if($('jmPayFinalDate')) $('jmPayFinalDate').value=arr[1]?.date||'';
+      }
+      if(cond==='entrada_parcelas'){
+        const entry=arr.find(p=>/^Entrada/i.test(p.label||''));
+        const parcels=arr.filter(p=>!/Entrada/i.test(p.label||''));
+        const pct=((entry?.label||'').match(/(\d+(?:[.,]\d+)?)%/)||[])[1] || '';
+        if($('jmPayEntryPct')) $('jmPayEntryPct').value=pct;
+        if($('jmPayEntryDate')) $('jmPayEntryDate').value=entry?.date||'';
+        if($('jmPayParcelCount')) { $('jmPayParcelCount').value=parcels.length; fire($('jmPayParcelCount')); }
+        setTimeout(()=>document.querySelectorAll('#jmPayRows .jmPayRow').forEach((r,i)=>{ const p=parcels[i]||{}; r.querySelector('.jmPayLabel').value=p.label||`Parcela ${i+1}`; r.querySelector('.jmPayDate').value=p.date||''; r.querySelector('.jmPayValue').value=p.value||''; }),25);
+      }
+      if(cond==='etapas'){
+        if($('jmPayParcelCount')) { $('jmPayParcelCount').value=arr.length; fire($('jmPayParcelCount')); }
+        setTimeout(()=>document.querySelectorAll('#jmPayRows .jmPayRow').forEach((r,i)=>{ const p=arr[i]||{}; r.querySelector('.jmPayLabel').value=p.label||`Etapa ${i+1}`; r.querySelector('.jmPayDate').value=p.date||''; r.querySelector('.jmPayValue').value=p.value||''; }),25);
+      }
+    },25);
+  }
+
+  function ensureDocPayment(container,b){
+    if(!container || !b) return;
+    if(container.querySelector('.jmPaymentScheduleDoc')) return;
+    container.insertAdjacentHTML('beforeend', `<div class="proposalDoc jmPaymentAppend"><div class="proposalBody"><h3>Condição de pagamento</h3><p>${esc(planText(b))}</p>${planTable(b)}</div></div>`);
+  }
+
+  const oldObj=window.objFromForm;
+  window.objFromForm=function(){ return enrichBudget(oldObj ? oldObj.apply(this,arguments) : {}); };
+
+  const oldEdit=window.editBudget;
+  window.editBudget=function(id){
+    if(oldEdit) oldEdit.apply(this,arguments);
+    setTimeout(()=>{ const b=window.state?.budgets?.find(x=>x.id===id); loadSavedPlan(b); },80);
+  };
+
+  const oldPreview=window.previewProposal;
+  window.previewProposal=function(){
+    const b=enrichBudget(window.objFromForm ? window.objFromForm() : {});
+    if(window.proposalTemp) window.proposalTemp(b); else if(oldPreview) oldPreview.apply(this,arguments);
+    setTimeout(()=>ensureDocPayment(document.getElementById('proposalPrint'),b),80);
+  };
+
+  const oldOpenProposal=window.openProposal;
+  window.openProposal=function(id){
+    const b=window.state?.budgets?.find(x=>x.id===id); if(b) enrichBudget(b);
+    if(oldOpenProposal) oldOpenProposal.apply(this,arguments);
+    setTimeout(()=>ensureDocPayment(document.getElementById('proposalPrint'),b),80);
+  };
+
+  const oldOpenContract=window.openContract;
+  window.openContract=function(id){
+    const b=window.state?.budgets?.find(x=>x.id===id); if(b) enrichBudget(b);
+    if(oldOpenContract) oldOpenContract.apply(this,arguments);
+    setTimeout(()=>ensureDocPayment(document.getElementById('contractPrint')||document.getElementById('contractContent'),b),80);
+  };
+
+  function start(){ hideLegacyPaymentField(); setTimeout(hideLegacyPaymentField,200); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+})();
+</script>
+<style id="jm-v49-payment-polish">
+  #paymentCustomWrap{display:none!important}
+  .jmPaymentScheduleDoc{margin-top:14px;border:1px solid rgba(148,130,105,.25);border-radius:16px;overflow:hidden;background:#fff}
+  .jmPaymentScheduleDoc h3{margin:0;padding:12px 14px;background:#f7f2ea;color:#1f2937}
+  .jmPaymentScheduleDoc table{width:100%;border-collapse:collapse}
+  .jmPaymentScheduleDoc th,.jmPaymentScheduleDoc td{padding:10px 12px;border-top:1px solid rgba(148,130,105,.22);font-size:13px}
+</style>
+
 </body></html>
