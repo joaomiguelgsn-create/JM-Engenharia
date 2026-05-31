@@ -5776,4 +5776,247 @@ init();
   .jmPaymentScheduleDoc th,.jmPaymentScheduleDoc td{padding:10px 12px;border-top:1px solid rgba(148,130,105,.22);font-size:13px}
 </style>
 
+
+
+<script id="jm-v50-finance-schedule-fix">
+(function(){
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const moeda = v => Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const br = d => {
+    if(!d) return '';
+    const [y,m,day]=String(d).split('-');
+    return (y&&m&&day) ? `${day}/${m}/${y}` : String(d);
+  };
+  const parseDate = d => d ? new Date(String(d)+'T23:59:59') : null;
+  const todayEnd = () => new Date(new Date().toISOString().slice(0,10)+'T23:59:59');
+  const payTotal = b => Array.isArray(b?.payments) ? b.payments.reduce((a,p)=>a+(Number(p.value)||0),0) : Number(b?.received)||0;
+
+  function basePlan(b,c){
+    let arr = Array.isArray(b?.paymentPlan) ? b.paymentPlan.slice() : [];
+    arr = arr.map((p,i)=>({
+      label: p.label || `Pagamento ${i+1}`,
+      date: p.date || '',
+      value: Number(p.value)||0
+    })).filter(p=>p.label || p.date || p.value);
+    if(!arr.length){
+      const final = Number(c?.final)||0;
+      arr = [{label:'Pagamento', date:b?.paymentDue||'', value:final}];
+    }
+    return arr.sort((a,b)=>String(a.date||'9999-12-31').localeCompare(String(b.date||'9999-12-31')));
+  }
+
+  function financeInfo(b,c){
+    const final = Number(c?.final)||0;
+    const paid = payTotal(b);
+    const restTotal = Math.max(0, final-paid);
+    const plan = basePlan(b,c);
+    let credit = paid;
+    const installments = plan.map(p=>{
+      const v = Number(p.value)||0;
+      const covered = Math.min(v, Math.max(0, credit));
+      credit -= covered;
+      return {...p, paid:covered, remaining:Math.max(0, v-covered)};
+    });
+    const now = todayEnd();
+    const overdue = installments.filter(p=>p.remaining>0.009 && p.date && parseDate(p.date) < now);
+    const upcoming = installments.find(p=>p.remaining>0.009 && (!p.date || parseDate(p.date) >= now));
+    const next = overdue[0] || upcoming || null;
+    let kind = 'pending';
+    if(final>0 && paid>=final) kind='paid';
+    else if(overdue.length) kind='overdue';
+    else if(paid>0) kind='partial';
+    return {kind, paid, restTotal, plan:installments, overdue, next};
+  }
+
+  window.jmFinanceInfo = financeInfo;
+  window.financeStatusKind = function(c,b){ return financeInfo(b,c).kind; };
+  window.financeStatusBadge = function(c,b){
+    const info = financeInfo(b,c);
+    if(info.kind==='paid') return '<span class="financeStatus paid">✓ Quitado</span>';
+    if(info.kind==='overdue') return `<span class="financeStatus overdue">! ${info.overdue.length} vencido(s)</span>`;
+    if(info.kind==='partial') return '<span class="financeStatus partial">◐ Parcial</span>';
+    return '<span class="financeStatus pending">● Em aberto</span>';
+  };
+  window.jmFinanceStatus = function(b){ return financeInfo(b, typeof calcFrom==='function'?calcFrom(b):{}).kind; };
+  window.financeFilterMatch = function(b){
+    const k = financeInfo(b,calcFrom(b)).kind;
+    const f = window.state?.financeFilter || 'Todos';
+    if(f==='Todos') return true;
+    if(f==='Quitados') return k==='paid';
+    if(f==='Em aberto') return k==='pending'||k==='partial';
+    if(f==='Atrasados') return k==='overdue';
+    return true;
+  };
+
+  const oldOpenPayments = window.openPayments;
+  window.openPayments = function(id){
+    if(oldOpenPayments) oldOpenPayments.apply(this,arguments);
+    setTimeout(()=>{
+      const b = window.state?.budgets?.find(x=>x.id===id);
+      const box = document.querySelector('#historyBox > div');
+      if(!b || !box || box.querySelector('.jmFinancePlanBox')) return;
+      const c = calcFrom(b), info = financeInfo(b,c);
+      const rows = info.plan.map(p=>{
+        const cls = p.remaining<=0.009 ? 'ok' : (p.date && parseDate(p.date)<todayEnd() ? 'bad' : 'blue');
+        const status = p.remaining<=0.009 ? 'Pago' : (p.date && parseDate(p.date)<todayEnd() ? 'Vencido' : 'A vencer');
+        return `<tr><td>${esc(p.label)}</td><td>${br(p.date)||'A combinar'}</td><td style="text-align:right"><b>${moeda(p.value)}</b></td><td><span class="pill ${cls}">${status}</span><br><span class="mini">Falta: ${moeda(p.remaining)}</span></td></tr>`;
+      }).join('');
+      box.insertAdjacentHTML('beforeend', `<div class="jmFinancePlanBox"><h3 style="margin-top:18px">Cronograma previsto</h3><table><thead><tr><th>Etapa</th><th>Vencimento</th><th style="text-align:right">Valor</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`);
+    },50);
+  };
+
+  window.renderFinance = function(){
+    const all = (window.state?.budgets||[]).filter(b=>b.status==='Fechado');
+    all.forEach(b=>{ if(typeof syncLegacyReceived==='function') syncLegacyReceived(b); });
+    const counts={
+      'Todos':all.length,
+      'Quitados':all.filter(b=>financeInfo(b,calcFrom(b)).kind==='paid').length,
+      'Em aberto':all.filter(b=>['pending','partial'].includes(financeInfo(b,calcFrom(b)).kind)).length,
+      'Atrasados':all.filter(b=>financeInfo(b,calcFrom(b)).kind==='overdue').length
+    };
+    const filters=['Todos','Quitados','Em aberto','Atrasados'];
+    const ps=all.filter(window.financeFilterMatch);
+    const filterHtml=`<div class="financeFilters">${filters.map(f=>`<button class="${(state.financeFilter||'Todos')===f?'active':''}" onclick="setFinanceFilter('${f}')">${f} <span class="mini">(${counts[f]})</span></button>`).join('')}</div>`;
+    const rows = ps.map(b=>{
+      const c=calcFrom(b), info=financeInfo(b,c), rest=Math.max(0,(Number(c.final)||0)-info.paid);
+      const rowClass=info.kind==='paid'?'financePaid':info.kind==='overdue'?'financeOverdue':'';
+      const nextText = info.kind==='paid' ? 'Tudo quitado' : (info.next ? `${esc(info.next.label)}: ${br(info.next.date)||'sem data'} • ${moeda(info.next.remaining)}` : 'Sem próximo pagamento definido');
+      return `<tr class="${rowClass}"><td><b>${esc(b.cliente)}</b><br><span class="muted">${esc((b.projetos||[]).join(', '))}</span><br><span class="mini">Próximo pagamento: ${nextText}</span></td><td><span class="moneyNowrap">${moeda(c.final)}</span></td><td><span class="moneyNowrap">${moeda(info.paid)}</span><br><span class="mini">${(b.payments||[]).length} pagamento(s)</span></td><td><span class="moneyNowrap">${moeda(rest)}</span></td><td>${window.financeStatusBadge(c,b)}</td><td><button class="btn primary" onclick="openPayments('${b.id}')">Editar pagamentos</button></td></tr>`;
+    }).join('') || '<tr><td colspan="6" class="muted">Sem projetos neste filtro.</td></tr>';
+    const el = $('financeRows');
+    if(el) el.innerHTML = filterHtml+`<table><thead><tr><th>Cliente</th><th>Valor</th><th>Recebido</th><th>A receber</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table>`;
+  };
+
+  if(typeof window.renderAll === 'function'){
+    const oldRenderAll = window.renderAll;
+    window.renderAll = function(){ oldRenderAll.apply(this,arguments); if(document.getElementById('financeiro')?.classList.contains('active')) window.renderFinance(); };
+  }
+})();
+</script>
+
+
+
+<script id="jm-v50-finance-next-payment-fix">
+(function(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const moeda = v => Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const br = d => { if(!d) return 'A combinar'; const [y,m,day]=String(d).split('-'); return (y&&m&&day)?`${day}/${m}/${y}`:String(d); };
+  const parseEnd = d => d ? new Date(String(d).slice(0,10)+'T23:59:59') : null;
+  const todayEnd = () => new Date(new Date().toISOString().slice(0,10)+'T23:59:59');
+  const payTotal = b => Array.isArray(b?.payments) ? b.payments.reduce((a,p)=>a+(Number(p.value)||0),0) : Number(b?.received)||0;
+
+  function plannedItems(b,c){
+    const final = Number(c?.final)||0;
+    let arr = Array.isArray(b?.paymentPlan) ? b.paymentPlan.map((p,i)=>({
+      label: p.label || `Pagamento ${i+1}`,
+      date: String(p.date||'').slice(0,10),
+      value: Number(p.value)||0
+    })).filter(p=>p.label || p.date || p.value) : [];
+
+    // Correção principal: quando não existe cronograma salvo, o vencimento antigo não pode
+    // transformar o saldo inteiro em atrasado depois que a entrada já foi recebida.
+    if(!arr.length){
+      if((Array.isArray(b?.payments) && b.payments.length) || payTotal(b)>0){
+        arr = [{label:'Próximo pagamento / saldo', date:'', value:Math.max(0, final-payTotal(b))}];
+      }else{
+        arr = [{label:'Pagamento', date:b?.paymentDue||'', value:final}];
+      }
+    }
+    return arr.sort((a,b)=>String(a.date||'9999-12-31').localeCompare(String(b.date||'9999-12-31')));
+  }
+
+  function financeInfoFixed(b,c){
+    const final = Number(c?.final)||0;
+    const paid = payTotal(b);
+    const restTotal = Math.max(0, final-paid);
+    let credit = paid;
+    const plan = plannedItems(b,c).map(p=>{
+      const v = Number(p.value)||0;
+      const covered = Math.min(v, Math.max(0, credit));
+      credit -= covered;
+      return {...p, paid:covered, remaining:Math.max(0, v-covered)};
+    });
+    const now = todayEnd();
+    const unpaid = plan.filter(p=>p.remaining>0.009);
+    const overdue = unpaid.filter(p=>p.date && parseEnd(p.date) < now);
+    const upcoming = unpaid.find(p=>!p.date || parseEnd(p.date) >= now) || null;
+    const next = overdue[0] || upcoming || null;
+    let kind='pending';
+    if(final>0 && paid>=final) kind='paid';
+    else if(overdue.length) kind='overdue';
+    else if(paid>0) kind='partial';
+    return {kind, paid, restTotal, plan, overdue, next};
+  }
+
+  window.jmFinanceInfo = financeInfoFixed;
+  window.financeStatusKind = function(c,b){ return financeInfoFixed(b,c).kind; };
+  window.financeStatusBadge = function(c,b){
+    const info=financeInfoFixed(b,c);
+    if(info.kind==='paid') return '<span class="financeStatus paid">✓ Quitado</span>';
+    if(info.kind==='overdue') return `<span class="financeStatus overdue">! ${info.overdue.length} vencido(s)</span>`;
+    if(info.kind==='partial') return '<span class="financeStatus partial">◐ Parcial</span>';
+    return '<span class="financeStatus pending">● Em aberto</span>';
+  };
+  window.jmFinanceStatus = function(b){ return financeInfoFixed(b, typeof calcFrom==='function'?calcFrom(b):{}).kind; };
+  window.financeFilterMatch = function(b){
+    const k=financeInfoFixed(b,calcFrom(b)).kind;
+    const f=window.state?.financeFilter||'Todos';
+    if(f==='Todos') return true;
+    if(f==='Quitados') return k==='paid';
+    if(f==='Em aberto') return k==='pending'||k==='partial';
+    if(f==='Atrasados') return k==='overdue';
+    return true;
+  };
+
+  window.renderFinance = function(){
+    const all=(window.state?.budgets||[]).filter(b=>b.status==='Fechado');
+    all.forEach(b=>{ if(typeof syncLegacyReceived==='function') syncLegacyReceived(b); });
+    const counts={
+      'Todos':all.length,
+      'Quitados':all.filter(b=>financeInfoFixed(b,calcFrom(b)).kind==='paid').length,
+      'Em aberto':all.filter(b=>['pending','partial'].includes(financeInfoFixed(b,calcFrom(b)).kind)).length,
+      'Atrasados':all.filter(b=>financeInfoFixed(b,calcFrom(b)).kind==='overdue').length
+    };
+    const filters=['Todos','Quitados','Em aberto','Atrasados'];
+    const ps=all.filter(window.financeFilterMatch);
+    const filterHtml=`<div class="financeFilters">${filters.map(f=>`<button class="${(state.financeFilter||'Todos')===f?'active':''}" onclick="setFinanceFilter('${f}')">${f} <span class="mini">(${counts[f]})</span></button>`).join('')}</div>`;
+    const rows=ps.map(b=>{
+      const c=calcFrom(b), info=financeInfoFixed(b,c), rest=Math.max(0,(Number(c.final)||0)-info.paid);
+      const rowClass=info.kind==='paid'?'financePaid':info.kind==='overdue'?'financeOverdue':'';
+      const nextText=info.kind==='paid'?'Tudo quitado':(info.next?`${esc(info.next.label)}: ${br(info.next.date)} • ${moeda(info.next.remaining)}`:'Sem próximo pagamento definido');
+      return `<tr class="${rowClass}"><td><b>${esc(b.cliente)}</b><br><span class="muted">${esc((b.projetos||[]).join(', '))}</span><br><span class="mini">Próximo pagamento: ${nextText}</span></td><td><span class="moneyNowrap">${moeda(c.final)}</span></td><td><span class="moneyNowrap">${moeda(info.paid)}</span><br><span class="mini">${(b.payments||[]).length} pagamento(s)</span></td><td><span class="moneyNowrap">${moeda(rest)}</span></td><td>${window.financeStatusBadge(c,b)}</td><td><button class="btn primary" onclick="openPayments('${b.id}')">Editar pagamentos</button></td></tr>`;
+    }).join('') || '<tr><td colspan="6" class="muted">Sem projetos neste filtro.</td></tr>';
+    const el=$('financeRows');
+    if(el) el.innerHTML=filterHtml+`<table><thead><tr><th>Cliente</th><th>Valor</th><th>Recebido</th><th>A receber</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table>`;
+  };
+
+  const oldOpenPayments=window.openPayments;
+  window.openPayments=function(id){
+    if(oldOpenPayments) oldOpenPayments.apply(this,arguments);
+    setTimeout(()=>{
+      const b=window.state?.budgets?.find(x=>x.id===id);
+      const box=document.querySelector('#historyBox > div');
+      if(!b||!box) return;
+      box.querySelectorAll('.jmFinancePlanBox').forEach(x=>x.remove());
+      const c=calcFrom(b), info=financeInfoFixed(b,c);
+      const rows=info.plan.map(p=>{
+        const cls=p.remaining<=0.009?'ok':(p.date && parseEnd(p.date)<todayEnd()?'bad':'blue');
+        const status=p.remaining<=0.009?'Pago':(p.date && parseEnd(p.date)<todayEnd()?'Vencido':'A vencer');
+        return `<tr><td>${esc(p.label)}</td><td>${br(p.date)}</td><td style="text-align:right"><b>${moeda(p.value)}</b></td><td><span class="pill ${cls}">${status}</span><br><span class="mini">Falta: ${moeda(p.remaining)}</span></td></tr>`;
+      }).join('');
+      box.insertAdjacentHTML('beforeend',`<div class="jmFinancePlanBox"><h3 style="margin-top:18px">Cronograma previsto</h3><table><thead><tr><th>Etapa</th><th>Vencimento</th><th style="text-align:right">Valor</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`);
+    },80);
+  };
+
+  if(typeof window.renderAll==='function'){
+    const prev=window.renderAll;
+    window.renderAll=function(){ prev.apply(this,arguments); if(document.getElementById('financeiro')?.classList.contains('active')) window.renderFinance(); };
+  }
+  setTimeout(()=>{ if(document.getElementById('financeiro')?.classList.contains('active')) window.renderFinance(); },200);
+})();
+</script>
+
 </body></html>
