@@ -5542,4 +5542,180 @@ init();
 })();
 </script>
 
+<script>
+/* PATCH JM NETO — cronograma de pagamentos no orçamento, proposta, contrato e financeiro */
+(function(){
+  if(window.__JM_PAYMENT_PLAN_20260530__) return;
+  window.__JM_PAYMENT_PLAN_20260530__ = true;
+
+  function byId(id){return document.getElementById(id)}
+  function n(v){return Number(String(v||'').replace(',','.'))||0}
+  function esc(v){return String(v ?? '').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function isoToday(){return new Date().toISOString().slice(0,10)}
+  function addMonths(iso, months){
+    var d = iso ? new Date(String(iso).slice(0,10)+'T00:00:00') : new Date();
+    if(isNaN(d)) d = new Date();
+    var day = d.getDate();
+    d.setMonth(d.getMonth()+months);
+    if(d.getDate() < day) d.setDate(0);
+    return d.toISOString().slice(0,10);
+  }
+  function br(iso){try{return iso ? new Date(String(iso).slice(0,10)+'T00:00:00').toLocaleDateString('pt-BR') : 'A combinar'}catch(e){return 'A combinar'}}
+  function moneySafe(v){try{return typeof money==='function'?money(Number(v)||0):(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+(Number(v)||0).toFixed(2)}}
+  function uidSafe(){try{return typeof uid==='function'?uid():'pay_'+Date.now().toString(36)+Math.random().toString(36).slice(2)}catch(e){return 'pay_'+Date.now().toString(36)}}
+
+  function ensureStyles(){
+    if(byId('jmPaymentPlanStyle')) return;
+    var st=document.createElement('style'); st.id='jmPaymentPlanStyle';
+    st.textContent=`
+      .jmPayPlanner{grid-column:1/-1;border:1px solid var(--line);border-radius:22px;padding:16px;background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.035));box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+      .jmPayPlanner h4{margin:0 0 6px;font-size:15px}.jmPayPlanner .mini{display:block;margin-bottom:12px}.jmPayGrid{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px}.jmPayGrid .field{margin:0!important}.jmPayActions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.jmPayRows{display:grid;gap:8px;margin-top:10px}.jmPayRow{display:grid;grid-template-columns:1.2fr 1fr 1fr auto;gap:8px;align-items:end;border:1px solid var(--line);border-radius:16px;padding:10px;background:rgba(0,0,0,.12)}.jmPayRow label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:900}.jmPayRow input{width:100%}.jmPayTotal{display:flex;justify-content:space-between;gap:12px;align-items:center;border-top:1px solid var(--line);margin-top:12px;padding-top:12px}.jmPayTotal b{font-size:16px}.jmPaymentScheduleDoc{margin:16px 0;border:1px solid rgba(15,23,42,.14);border-radius:16px;overflow:hidden;background:#fff}.jmPaymentScheduleDoc h3{margin:0!important;padding:12px 14px;background:#f8fafc;color:#0f172a!important}.jmPaymentScheduleDoc table{width:100%;border-collapse:collapse}.jmPaymentScheduleDoc th,.jmPaymentScheduleDoc td{padding:10px 12px;border-top:1px solid #e2e8f0;color:#0f172a}.jmPaymentScheduleDoc th{text-align:left;background:#f8fafc;font-size:12px;text-transform:uppercase;letter-spacing:.04em}.jmPaymentScheduleDoc td:last-child,.jmPaymentScheduleDoc th:last-child{text-align:right}.jmFinanceSchedule{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}.jmDuePill{font-size:10px;border:1px solid var(--line);border-radius:999px;padding:4px 7px;color:var(--mut);background:rgba(255,255,255,.05)}
+      @media(max-width:900px){.jmPayGrid{grid-template-columns:1fr 1fr}.jmPayRow{grid-template-columns:1fr 1fr}.jmPayRow button{grid-column:1/-1}}`;
+    document.head.appendChild(st);
+  }
+
+  function ensurePlanner(){
+    ensureStyles();
+    if(byId('jmPayPlanner')) return;
+    var due=byId('paymentDue'); if(!due) return;
+    var field=due.closest('.field') || due.parentElement;
+    var box=document.createElement('div'); box.id='jmPayPlanner'; box.className='field full jmPayPlanner';
+    box.innerHTML=`<h4>Cronograma de pagamento</h4><span class="mini">Informe entrada, quantidade de parcelas e datas. A proposta, contrato, financeiro e portal do cliente usam essas informações salvas no orçamento.</span>
+      <div class="jmPayGrid">
+        <div class="field"><label>Valor da entrada</label><input id="jmEntryValue" type="number" min="0" step="0.01" placeholder="30% automático"></div>
+        <div class="field"><label>Data da entrada</label><input id="jmEntryDate" type="date"></div>
+        <div class="field"><label>Quantidade de parcelas</label><input id="jmInstallmentsCount" type="number" min="0" max="48" step="1" value="1"></div>
+        <div class="field"><label>1ª parcela</label><input id="jmFirstInstallmentDate" type="date"></div>
+      </div>
+      <div class="jmPayActions"><button class="btn" type="button" id="jmAutoPlanBtn">Calcular automático</button><button class="btn ghost" type="button" id="jmAddPayRowBtn">Adicionar parcela manual</button></div>
+      <div id="jmPayRows" class="jmPayRows"></div><div id="jmPayTotal" class="jmPayTotal"></div>`;
+    field.insertAdjacentElement('afterend', box);
+    ['jmEntryValue','jmEntryDate','jmInstallmentsCount','jmFirstInstallmentDate'].forEach(function(id){var el=byId(id); if(el) el.addEventListener('input',function(){buildRows(true); callUpdateCalc(false);});});
+    byId('jmAutoPlanBtn').addEventListener('click',function(){suggestPlan(true);});
+    byId('jmAddPayRowBtn').addEventListener('click',function(){addManualRow(); syncTotals(); callUpdateCalc(false);});
+  }
+
+  function currentTotal(){try{return calcFrom(objFromForm()).final||0}catch(e){try{return calcFrom({area:n(byId('area')&&byId('area').value),projetos:['Arquitetônico']}).final||0}catch(_){return 0}}}
+  function getRows(){return Array.from(document.querySelectorAll('#jmPayRows .jmPayRow'))}
+  function rowHtml(label,value,date,type){var id=uidSafe(); return `<div class="jmPayRow" data-pay-row="${esc(type||'installment')}" data-pay-id="${esc(id)}"><div><label>Descrição</label><input class="jmPayLabel" value="${esc(label)}"></div><div><label>Valor</label><input class="jmPayValue" type="number" min="0" step="0.01" value="${Number(value||0).toFixed(2)}"></div><div><label>Data</label><input class="jmPayDate" type="date" value="${esc(date||'')}"></div><button class="btn red" type="button" onclick="this.closest('.jmPayRow').remove(); window.jmSyncPaymentPlanTotals&&window.jmSyncPaymentPlanTotals();">Apagar</button></div>`}
+  function bindRows(){getRows().forEach(function(r){r.querySelectorAll('input').forEach(function(i){if(!i.__jmPayBind){i.__jmPayBind=true;i.addEventListener('input',function(){syncTotals();callUpdateCalc(false);});}});});}
+  function syncTotals(){
+    var total=currentTotal(), sum=0; getRows().forEach(function(r){sum+=n(r.querySelector('.jmPayValue')?.value)});
+    var el=byId('jmPayTotal'); if(el) el.innerHTML=`<span>Total do cronograma: <b>${moneySafe(sum)}</b></span><span>Valor do orçamento: <b>${moneySafe(total)}</b></span><span class="mini">Diferença: <b>${moneySafe(sum-total)}</b></span>`;
+    var plan=getPlanFromDom(); var first=plan.find(x=>x.date); var pd=byId('paymentDue'); if(pd && first) pd.value=first.date;
+  }
+  window.jmSyncPaymentPlanTotals=syncTotals;
+
+  function buildRows(force){
+    var wrap=byId('jmPayRows'); if(!wrap) return;
+    var total=currentTotal();
+    var entry=n(byId('jmEntryValue')?.value); if(!entry && force) entry=Math.round(total*0.30*100)/100;
+    var count=Math.max(0,Math.floor(n(byId('jmInstallmentsCount')?.value)));
+    var entryDate=byId('jmEntryDate')?.value || byId('paymentDue')?.value || isoToday();
+    var firstDate=byId('jmFirstInstallmentDate')?.value || addMonths(entryDate,1);
+    var rest=Math.max(0,total-entry); var per=count?Math.round((rest/count)*100)/100:0;
+    var html=''; if(entry>0) html+=rowHtml('Entrada',entry,entryDate,'entry');
+    for(var i=1;i<=count;i++){var value=(i===count)?Math.round((rest-per*(count-1))*100)/100:per; html+=rowHtml('Parcela '+i+'/'+count,value,addMonths(firstDate,i-1),'installment');}
+    wrap.innerHTML=html; bindRows(); syncTotals();
+  }
+  function addManualRow(){var wrap=byId('jmPayRows'); if(!wrap)return; var i=getRows().length+1; wrap.insertAdjacentHTML('beforeend',rowHtml('Parcela '+i,0,addMonths(isoToday(),i),'installment')); bindRows();}
+  function suggestPlan(force){
+    var total=currentTotal();
+    if(byId('jmEntryValue')) byId('jmEntryValue').value=(Math.round(total*0.30*100)/100).toFixed(2);
+    if(byId('jmEntryDate') && !byId('jmEntryDate').value) byId('jmEntryDate').value=byId('paymentDue')?.value || isoToday();
+    if(byId('jmInstallmentsCount') && (!byId('jmInstallmentsCount').value || force)) byId('jmInstallmentsCount').value='1';
+    if(byId('jmFirstInstallmentDate') && !byId('jmFirstInstallmentDate').value) byId('jmFirstInstallmentDate').value=addMonths(byId('jmEntryDate')?.value || isoToday(),1);
+    buildRows(true);
+  }
+  function getPlanFromDom(){return getRows().map(function(r){return {id:r.dataset.payId||uidSafe(),type:r.dataset.payRow||'installment',label:(r.querySelector('.jmPayLabel')?.value||'Parcela').trim(),value:n(r.querySelector('.jmPayValue')?.value),date:r.querySelector('.jmPayDate')?.value||''}}).filter(x=>x.value>0||x.date||x.label)}
+  function setPlanToDom(b){
+    ensurePlanner();
+    var meta=b?.paymentPlanMeta||{};
+    if(byId('jmEntryValue')) byId('jmEntryValue').value=meta.entryValue||'';
+    if(byId('jmEntryDate')) byId('jmEntryDate').value=meta.entryDate||b?.paymentDue||'';
+    if(byId('jmInstallmentsCount')) byId('jmInstallmentsCount').value=meta.installmentsCount ?? (Array.isArray(b?.paymentSchedule)?Math.max(0,b.paymentSchedule.filter(x=>x.type!=='entry').length):1);
+    if(byId('jmFirstInstallmentDate')) byId('jmFirstInstallmentDate').value=meta.firstInstallmentDate||'';
+    var arr=Array.isArray(b?.paymentSchedule)?b.paymentSchedule:[];
+    if(arr.length){byId('jmPayRows').innerHTML=arr.map(x=>rowHtml(x.label,x.value,x.date,x.type)).join(''); bindRows(); syncTotals();}
+    else suggestPlan(false);
+  }
+  function paymentSummary(b){var arr=Array.isArray(b?.paymentSchedule)?b.paymentSchedule:[]; if(!arr.length){var c;try{c=calcFrom(b)}catch(e){c={final:n(b?.negociado)}};return `Entrada de ${moneySafe((c.final||0)*0.30)} e saldo conforme etapas combinadas.`} return arr.map(x=>`${x.label}: ${moneySafe(x.value)}${x.date?' em '+br(x.date):''}`).join('; ')+'.'}
+  function paymentTable(b){var arr=Array.isArray(b?.paymentSchedule)?b.paymentSchedule:[]; if(!arr.length)return ''; var total=arr.reduce((a,x)=>a+n(x.value),0); return `<div class="jmPaymentScheduleDoc"><h3>Cronograma de pagamentos</h3><table><thead><tr><th>Etapa</th><th>Data</th><th>Valor</th></tr></thead><tbody>${arr.map(x=>`<tr><td>${esc(x.label)}</td><td>${br(x.date)}</td><td>${moneySafe(x.value)}</td></tr>`).join('')}<tr><td colspan="2"><b>Total</b></td><td><b>${moneySafe(total)}</b></td></tr></tbody></table></div>`}
+  window.jmPaymentSummary=paymentSummary; window.jmPaymentTable=paymentTable;
+
+  function callUpdateCalc(runOriginal){try{if(runOriginal!==false && typeof window.__jmOldUpdateCalc==='function') window.__jmOldUpdateCalc();}catch(e){} try{syncTotals();}catch(e){}}
+
+  function patchFunctions(){
+    ensurePlanner();
+    if(typeof objFromForm==='function' && !window.__jmOldObjFromForm){
+      window.__jmOldObjFromForm=objFromForm;
+      objFromForm=window.objFromForm=function(){var b=window.__jmOldObjFromForm.apply(this,arguments); var plan=getPlanFromDom(); b.paymentSchedule=plan; b.paymentPlan=plan; b.paymentPlanText=paymentSummary(b); b.paymentPlanMeta={entryValue:byId('jmEntryValue')?.value||'',entryDate:byId('jmEntryDate')?.value||'',installmentsCount:byId('jmInstallmentsCount')?.value||'',firstInstallmentDate:byId('jmFirstInstallmentDate')?.value||''}; var first=plan.find(x=>x.date); if(first)b.paymentDue=first.date; b.portalPaymentSchedule=plan; b.portalPaymentPlanText=b.paymentPlanText; return b;};
+    }
+    if(typeof updateCalc==='function' && !window.__jmOldUpdateCalc){
+      window.__jmOldUpdateCalc=updateCalc;
+      updateCalc=window.updateCalc=function(){var r=window.__jmOldUpdateCalc.apply(this,arguments); try{syncTotals();}catch(e){} return r;};
+    }
+    if(typeof resetForm==='function' && !window.__jmOldResetForm){
+      window.__jmOldResetForm=resetForm;
+      resetForm=window.resetForm=function(){var r=window.__jmOldResetForm.apply(this,arguments); setTimeout(function(){ensurePlanner(); suggestPlan(true);},50); return r;};
+    }
+    if(typeof editBudget==='function' && !window.__jmOldEditBudget){
+      window.__jmOldEditBudget=editBudget;
+      editBudget=window.editBudget=function(id){var r=window.__jmOldEditBudget.apply(this,arguments); setTimeout(function(){var b=(state.budgets||[]).find(x=>x.id===id); if(b)setPlanToDom(b);},80); return r;};
+    }
+    if(typeof proposalTemp==='function' && !window.__jmOldProposalTemp){
+      window.__jmOldProposalTemp=proposalTemp;
+      proposalTemp=window.proposalTemp=function(b){var r=window.__jmOldProposalTemp.apply(this,arguments); setTimeout(function(){injectPaymentDoc(b,false);},80); return r;};
+    }
+    if(typeof openContract==='function' && !window.__jmOldOpenContractPayPlan){
+      window.__jmOldOpenContractPayPlan=openContract;
+      openContract=window.openContract=function(id){var b=(state.budgets||[]).find(x=>x.id===id); var r=window.__jmOldOpenContractPayPlan.apply(this,arguments); setTimeout(function(){if(b)injectPaymentDoc(b,true);},100); return r;};
+    }
+    if(typeof renderFinance==='function' && !window.__jmOldRenderFinancePayPlan){
+      window.__jmOldRenderFinancePayPlan=renderFinance;
+      renderFinance=window.renderFinance=function(){var r=window.__jmOldRenderFinancePayPlan.apply(this,arguments); setTimeout(enhanceFinance,40); return r;};
+    }
+    enhancePortalFields();
+  }
+
+  function injectPaymentDoc(b,isContract){
+    var root=byId('proposalPrint'); if(!root||!b)return;
+    var table=paymentTable(b); if(!table)return;
+    root.querySelectorAll('.jmPaymentScheduleDoc').forEach(x=>x.remove());
+    var payBox=root.querySelector('.proposalPaymentPremium');
+    if(payBox){payBox.innerHTML='<small>Condição de pagamento</small><b>'+esc(paymentSummary(b))+'</b>'; payBox.insertAdjacentHTML('afterend',table); return;}
+    if(isContract){
+      var clauses=Array.from(root.querySelectorAll('.clauseBlock'));
+      var c7=clauses.find(x=>(x.textContent||'').includes('HONORÁRIOS')||(x.textContent||'').includes('PAGAMENTO'));
+      if(c7){
+        var p72=Array.from(c7.querySelectorAll('p')).find(p=>(p.textContent||'').includes('7.2'));
+        if(p72) p72.innerHTML='7.2 A forma de pagamento será conforme o cronograma abaixo: <b>'+esc(paymentSummary(b))+'</b>';
+        c7.insertAdjacentHTML('beforeend',table); return;
+      }
+    }
+    var target=root.querySelector('.proposalSummaryBox,.proposalServiceItem,.contractSummary');
+    if(target) target.insertAdjacentHTML('afterend',table);
+  }
+
+  function enhanceFinance(){
+    try{
+      document.querySelectorAll('#financeRows tbody tr').forEach(function(tr){
+        var name=(tr.querySelector('td b')?.textContent||'').trim();
+        var b=(state.budgets||[]).find(x=>(x.cliente||'').trim()===name && Array.isArray(x.paymentSchedule) && x.paymentSchedule.length);
+        if(!b || tr.querySelector('.jmFinanceSchedule')) return;
+        var cell=tr.querySelector('td'); if(!cell)return;
+        cell.insertAdjacentHTML('beforeend','<div class="jmFinanceSchedule">'+b.paymentSchedule.slice(0,4).map(x=>'<span class="jmDuePill">'+esc(x.label)+' • '+br(x.date)+' • '+moneySafe(x.value)+'</span>').join('')+(b.paymentSchedule.length>4?'<span class="jmDuePill">+'+(b.paymentSchedule.length-4)+'</span>':'')+'</div>');
+      });
+    }catch(e){}
+  }
+
+  function enhancePortalFields(){
+    try{(state.budgets||[]).forEach(function(b){if(!Array.isArray(b.paymentSchedule)||!b.paymentSchedule.length)return;b.portalPaymentSchedule=b.paymentSchedule;b.portalPaymentPlanText=paymentSummary(b);b.paymentPlanText=b.portalPaymentPlanText;});}catch(e){}
+  }
+
+  function boot(){patchFunctions(); if(byId('jmPayPlanner') && !getRows().length) suggestPlan(false);}
+  setTimeout(boot,200); setTimeout(boot,900); setInterval(boot,2500);
+})();
+</script>
+
 </body></html>
