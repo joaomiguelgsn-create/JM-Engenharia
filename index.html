@@ -5542,522 +5542,92 @@ init();
 })();
 </script>
 
-<script>
-/* PATCH JM NETO — cronograma de pagamentos no orçamento, proposta, contrato e financeiro */
+<script id="jm-payment-condition-safe-v2">
 (function(){
-  if(window.__JM_PAYMENT_PLAN_20260530__) return;
-  window.__JM_PAYMENT_PLAN_20260530__ = true;
-
-  function byId(id){return document.getElementById(id)}
-  function n(v){return Number(String(v||'').replace(',','.'))||0}
-  function esc(v){return String(v ?? '').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-  function isoToday(){return new Date().toISOString().slice(0,10)}
-  function addMonths(iso, months){
-    var d = iso ? new Date(String(iso).slice(0,10)+'T00:00:00') : new Date();
-    if(isNaN(d)) d = new Date();
-    var day = d.getDate();
-    d.setMonth(d.getMonth()+months);
-    if(d.getDate() < day) d.setDate(0);
-    return d.toISOString().slice(0,10);
+  'use strict';
+  const $ = (id)=>document.getElementById(id);
+  const esc = (s)=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const br = (d)=> d ? (typeof brDate==='function' ? brDate(d) : d) : 'A combinar';
+  const moeda = (v)=> (typeof money==='function' ? money(Number(v)||0) : (Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}));
+  const num = (id,def=0)=>{ const el=$(id); const v=el?String(el.value).replace(',','.') : ''; const n=Number(v); return Number.isFinite(n)?n:def; };
+  const val = (id)=>($(id)?.value||'');
+  const addDays = (date,days)=>{ if(!date) return ''; const dt=new Date(date+'T12:00:00'); dt.setDate(dt.getDate()+days); return dt.toISOString().slice(0,10); };
+  const addMonths = (date,m)=>{ if(!date) return ''; const dt=new Date(date+'T12:00:00'); dt.setMonth(dt.getMonth()+m); return dt.toISOString().slice(0,10); };
+  function finalValue(){ try{ const b = oldObj ? oldObj() : {}; return Number(calcFrom(b).final)||0; }catch(e){ return 0; } }
+  function ensureUI(){
+    const due=$('paymentDue'); if(!due || $('jmPayCondition')) return;
+    const dueWrap=due.closest('.field'); if(dueWrap) dueWrap.style.display='none';
+    const panel=document.createElement('div');
+    panel.id='jmPayPanel'; panel.className='field full';
+    panel.innerHTML=`<div class="jmPayBox"><label>Condição de pagamento</label><select id="jmPayCondition"><option value="">Selecione a condição de pagamento</option><option value="avista">À vista</option><option value="entrada_parcelas">Entrada + parcelas</option><option value="cinquenta">50% entrada + 50% na entrega</option><option value="etapas">Por etapas</option><option value="personalizado">Personalizado</option></select><div id="jmPayDynamic"></div><div id="jmPayTotal" class="mini" style="margin-top:8px"></div></div>`;
+    dueWrap ? dueWrap.insertAdjacentElement('afterend',panel) : document.querySelector('#orcamento .form')?.appendChild(panel);
+    $('jmPayCondition').addEventListener('change', ()=>{ renderDynamic(); syncDue(); });
+    renderDynamic();
   }
-  function br(iso){try{return iso ? new Date(String(iso).slice(0,10)+'T00:00:00').toLocaleDateString('pt-BR') : 'A combinar'}catch(e){return 'A combinar'}}
-  function moneySafe(v){try{return typeof money==='function'?money(Number(v)||0):(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+(Number(v)||0).toFixed(2)}}
-  function uidSafe(){try{return typeof uid==='function'?uid():'pay_'+Date.now().toString(36)+Math.random().toString(36).slice(2)}catch(e){return 'pay_'+Date.now().toString(36)}}
-
-  function ensureStyles(){
-    if(byId('jmPaymentPlanStyle')) return;
-    var st=document.createElement('style'); st.id='jmPaymentPlanStyle';
-    st.textContent=`
-      .jmPayPlanner{grid-column:1/-1;border:1px solid var(--line);border-radius:22px;padding:16px;background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.035));box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
-      .jmPayPlanner h4{margin:0 0 6px;font-size:15px}.jmPayPlanner .mini{display:block;margin-bottom:12px}.jmPayGrid{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px}.jmPayGrid .field{margin:0!important}.jmPayActions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.jmPayRows{display:grid;gap:8px;margin-top:10px}.jmPayRow{display:grid;grid-template-columns:1.2fr 1fr 1fr auto;gap:8px;align-items:end;border:1px solid var(--line);border-radius:16px;padding:10px;background:rgba(0,0,0,.12)}.jmPayRow label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:900}.jmPayRow input{width:100%}.jmPayTotal{display:flex;justify-content:space-between;gap:12px;align-items:center;border-top:1px solid var(--line);margin-top:12px;padding-top:12px}.jmPayTotal b{font-size:16px}.jmPaymentScheduleDoc{margin:16px 0;border:1px solid rgba(15,23,42,.14);border-radius:16px;overflow:hidden;background:#fff}.jmPaymentScheduleDoc h3{margin:0!important;padding:12px 14px;background:#f8fafc;color:#0f172a!important}.jmPaymentScheduleDoc table{width:100%;border-collapse:collapse}.jmPaymentScheduleDoc th,.jmPaymentScheduleDoc td{padding:10px 12px;border-top:1px solid #e2e8f0;color:#0f172a}.jmPaymentScheduleDoc th{text-align:left;background:#f8fafc;font-size:12px;text-transform:uppercase;letter-spacing:.04em}.jmPaymentScheduleDoc td:last-child,.jmPaymentScheduleDoc th:last-child{text-align:right}.jmFinanceSchedule{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}.jmDuePill{font-size:10px;border:1px solid var(--line);border-radius:999px;padding:4px 7px;color:var(--mut);background:rgba(255,255,255,.05)}
-      @media(max-width:900px){.jmPayGrid{grid-template-columns:1fr 1fr}.jmPayRow{grid-template-columns:1fr 1fr}.jmPayRow button{grid-column:1/-1}}`;
-    document.head.appendChild(st);
+  function css(){ if($('jmPayCss')) return; const st=document.createElement('style'); st.id='jmPayCss'; st.textContent=`.jmPayBox{border:1px solid rgba(148,130,105,.28);border-radius:18px;padding:16px;background:rgba(255,255,255,.55);display:grid;gap:12px}.jmPayGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.jmPayGrid .full{grid-column:1/-1}.jmPayRows{display:grid;gap:10px;margin-top:12px}.jmPayRow{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px}.jmPayRow input{width:100%}@media(max-width:800px){.jmPayGrid,.jmPayRow{grid-template-columns:1fr}}`; document.head.appendChild(st); }
+  function field(label,id,type='text',placeholder=''){ return `<div class="field"><label>${label}</label><input id="${id}" type="${type}" placeholder="${placeholder}"></div>`; }
+  function renderDynamic(){
+    const d=$('jmPayDynamic'); if(!d) return; const cond=val('jmPayCondition');
+    if(!cond){ d.innerHTML='<p class="mini">Escolha primeiro como o cliente vai pagar. Os campos aparecem conforme a condição escolhida.</p>'; $('jmPayTotal').textContent=''; return; }
+    if(cond==='avista') d.innerHTML=`<div class="jmPayGrid">${field('Data de pagamento','jmPaySingleDate','date')}</div>`;
+    if(cond==='entrada_parcelas') d.innerHTML=`<div class="jmPayGrid">${field('Entrada (%)','jmPayEntryPct','number','Ex: 50')}${field('Data da entrada','jmPayEntryDate','date')}${field('Quantidade de parcelas','jmPayParcelCount','number','Ex: 2')}<div class="field" id="jmFirstDateWrap"><label>Data da 1ª parcela</label><input id="jmPayFirstDate" type="date"></div></div><div class="jmPayRows" id="jmPayRows"></div>`;
+    if(cond==='cinquenta') d.innerHTML=`<div class="jmPayGrid">${field('Data da entrada','jmPayEntryDate','date')}${field('Data do pagamento final','jmPayFinalDate','date')}</div>`;
+    if(cond==='etapas') d.innerHTML=`<div class="jmPayGrid">${field('Quantidade de etapas','jmPayParcelCount','number','Ex: 3')}<div class="field" id="jmFirstDateWrap"><label>Data da 1ª etapa</label><input id="jmPayFirstDate" type="date"></div></div><div class="jmPayRows" id="jmPayRows"></div>`;
+    if(cond==='personalizado') d.innerHTML=`<div class="jmPayGrid"><div class="field full"><label>Condição personalizada</label><textarea id="jmPayCustom" placeholder="Ex: R$ 1.000,00 de entrada em 31/05/2026 + 2 parcelas..."></textarea></div></div>`;
+    bindDynamic(); recalcPlan();
   }
-
-  function ensurePlanner(){
-    ensureStyles();
-    if(byId('jmPayPlanner')) return;
-    var due=byId('paymentDue'); if(!due) return;
-    var field=due.closest('.field') || due.parentElement;
-    var box=document.createElement('div'); box.id='jmPayPlanner'; box.className='field full jmPayPlanner';
-    box.innerHTML=`<h4>Cronograma de pagamento</h4><span class="mini">Informe entrada, quantidade de parcelas e datas. A proposta, contrato, financeiro e portal do cliente usam essas informações salvas no orçamento.</span>
-      <div class="jmPayGrid">
-        <div class="field"><label>Valor da entrada</label><input id="jmEntryValue" type="number" min="0" step="0.01" placeholder="30% automático"></div>
-        <div class="field"><label>Data da entrada</label><input id="jmEntryDate" type="date"></div>
-        <div class="field"><label>Quantidade de parcelas</label><input id="jmInstallmentsCount" type="number" min="0" max="48" step="1" value="1"></div>
-        <div class="field"><label>1ª parcela</label><input id="jmFirstInstallmentDate" type="date"></div>
-      </div>
-      <div class="jmPayActions"><button class="btn" type="button" id="jmAutoPlanBtn">Calcular automático</button><button class="btn ghost" type="button" id="jmAddPayRowBtn">Adicionar parcela manual</button></div>
-      <div id="jmPayRows" class="jmPayRows"></div><div id="jmPayTotal" class="jmPayTotal"></div>`;
-    field.insertAdjacentElement('afterend', box);
-    ['jmEntryValue','jmEntryDate','jmInstallmentsCount','jmFirstInstallmentDate'].forEach(function(id){var el=byId(id); if(el) el.addEventListener('input',function(){buildRows(true); callUpdateCalc(false);});});
-    byId('jmAutoPlanBtn').addEventListener('click',function(){suggestPlan(true);});
-    byId('jmAddPayRowBtn').addEventListener('click',function(){addManualRow(); syncTotals(); callUpdateCalc(false);});
-  }
-
-  function currentTotal(){try{return calcFrom(objFromForm()).final||0}catch(e){try{return calcFrom({area:n(byId('area')&&byId('area').value),projetos:['Arquitetônico']}).final||0}catch(_){return 0}}}
-  function getRows(){return Array.from(document.querySelectorAll('#jmPayRows .jmPayRow'))}
-  function rowHtml(label,value,date,type){var id=uidSafe(); return `<div class="jmPayRow" data-pay-row="${esc(type||'installment')}" data-pay-id="${esc(id)}"><div><label>Descrição</label><input class="jmPayLabel" value="${esc(label)}"></div><div><label>Valor</label><input class="jmPayValue" type="number" min="0" step="0.01" value="${Number(value||0).toFixed(2)}"></div><div><label>Data</label><input class="jmPayDate" type="date" value="${esc(date||'')}"></div><button class="btn red" type="button" onclick="this.closest('.jmPayRow').remove(); window.jmSyncPaymentPlanTotals&&window.jmSyncPaymentPlanTotals();">Apagar</button></div>`}
-  function bindRows(){getRows().forEach(function(r){r.querySelectorAll('input').forEach(function(i){if(!i.__jmPayBind){i.__jmPayBind=true;i.addEventListener('input',function(){syncTotals();callUpdateCalc(false);});}});});}
-  function syncTotals(){
-    var total=currentTotal(), sum=0; getRows().forEach(function(r){sum+=n(r.querySelector('.jmPayValue')?.value)});
-    var el=byId('jmPayTotal'); if(el) el.innerHTML=`<span>Total do cronograma: <b>${moneySafe(sum)}</b></span><span>Valor do orçamento: <b>${moneySafe(total)}</b></span><span class="mini">Diferença: <b>${moneySafe(sum-total)}</b></span>`;
-    var plan=getPlanFromDom(); var first=plan.find(x=>x.date); var pd=byId('paymentDue'); if(pd && first) pd.value=first.date;
-  }
-  window.jmSyncPaymentPlanTotals=syncTotals;
-
-  function buildRows(force){
-    var wrap=byId('jmPayRows'); if(!wrap) return;
-    var total=currentTotal();
-    var entry=n(byId('jmEntryValue')?.value); if(!entry && force) entry=Math.round(total*0.30*100)/100;
-    var count=Math.max(0,Math.floor(n(byId('jmInstallmentsCount')?.value)));
-    var entryDate=byId('jmEntryDate')?.value || byId('paymentDue')?.value || isoToday();
-    var firstDate=byId('jmFirstInstallmentDate')?.value || addMonths(entryDate,1);
-    var rest=Math.max(0,total-entry); var per=count?Math.round((rest/count)*100)/100:0;
-    var html=''; if(entry>0) html+=rowHtml('Entrada',entry,entryDate,'entry');
-    for(var i=1;i<=count;i++){var value=(i===count)?Math.round((rest-per*(count-1))*100)/100:per; html+=rowHtml('Parcela '+i+'/'+count,value,addMonths(firstDate,i-1),'installment');}
-    wrap.innerHTML=html; bindRows(); syncTotals();
-  }
-  function addManualRow(){var wrap=byId('jmPayRows'); if(!wrap)return; var i=getRows().length+1; wrap.insertAdjacentHTML('beforeend',rowHtml('Parcela '+i,0,addMonths(isoToday(),i),'installment')); bindRows();}
-  function suggestPlan(force){
-    var total=currentTotal();
-    if(byId('jmEntryValue')) byId('jmEntryValue').value=(Math.round(total*0.30*100)/100).toFixed(2);
-    if(byId('jmEntryDate') && !byId('jmEntryDate').value) byId('jmEntryDate').value=byId('paymentDue')?.value || isoToday();
-    if(byId('jmInstallmentsCount') && (!byId('jmInstallmentsCount').value || force)) byId('jmInstallmentsCount').value='1';
-    if(byId('jmFirstInstallmentDate') && !byId('jmFirstInstallmentDate').value) byId('jmFirstInstallmentDate').value=addMonths(byId('jmEntryDate')?.value || isoToday(),1);
-    buildRows(true);
-  }
-  function getPlanFromDom(){return getRows().map(function(r){return {id:r.dataset.payId||uidSafe(),type:r.dataset.payRow||'installment',label:(r.querySelector('.jmPayLabel')?.value||'Parcela').trim(),value:n(r.querySelector('.jmPayValue')?.value),date:r.querySelector('.jmPayDate')?.value||''}}).filter(x=>x.value>0||x.date||x.label)}
-  function setPlanToDom(b){
-    ensurePlanner();
-    var meta=b?.paymentPlanMeta||{};
-    if(byId('jmEntryValue')) byId('jmEntryValue').value=meta.entryValue||'';
-    if(byId('jmEntryDate')) byId('jmEntryDate').value=meta.entryDate||b?.paymentDue||'';
-    if(byId('jmInstallmentsCount')) byId('jmInstallmentsCount').value=meta.installmentsCount ?? (Array.isArray(b?.paymentSchedule)?Math.max(0,b.paymentSchedule.filter(x=>x.type!=='entry').length):1);
-    if(byId('jmFirstInstallmentDate')) byId('jmFirstInstallmentDate').value=meta.firstInstallmentDate||'';
-    var arr=Array.isArray(b?.paymentSchedule)?b.paymentSchedule:[];
-    if(arr.length){byId('jmPayRows').innerHTML=arr.map(x=>rowHtml(x.label,x.value,x.date,x.type)).join(''); bindRows(); syncTotals();}
-    else suggestPlan(false);
-  }
-  function paymentSummary(b){var arr=Array.isArray(b?.paymentSchedule)?b.paymentSchedule:[]; if(!arr.length){var c;try{c=calcFrom(b)}catch(e){c={final:n(b?.negociado)}};return `Entrada de ${moneySafe((c.final||0)*0.30)} e saldo conforme etapas combinadas.`} return arr.map(x=>`${x.label}: ${moneySafe(x.value)}${x.date?' em '+br(x.date):''}`).join('; ')+'.'}
-  function paymentTable(b){var arr=Array.isArray(b?.paymentSchedule)?b.paymentSchedule:[]; if(!arr.length)return ''; var total=arr.reduce((a,x)=>a+n(x.value),0); return `<div class="jmPaymentScheduleDoc"><h3>Cronograma de pagamentos</h3><table><thead><tr><th>Etapa</th><th>Data</th><th>Valor</th></tr></thead><tbody>${arr.map(x=>`<tr><td>${esc(x.label)}</td><td>${br(x.date)}</td><td>${moneySafe(x.value)}</td></tr>`).join('')}<tr><td colspan="2"><b>Total</b></td><td><b>${moneySafe(total)}</b></td></tr></tbody></table></div>`}
-  window.jmPaymentSummary=paymentSummary; window.jmPaymentTable=paymentTable;
-
-  function callUpdateCalc(runOriginal){try{if(runOriginal!==false && typeof window.__jmOldUpdateCalc==='function') window.__jmOldUpdateCalc();}catch(e){} try{syncTotals();}catch(e){}}
-
-  function patchFunctions(){
-    ensurePlanner();
-    if(typeof objFromForm==='function' && !window.__jmOldObjFromForm){
-      window.__jmOldObjFromForm=objFromForm;
-      objFromForm=window.objFromForm=function(){var b=window.__jmOldObjFromForm.apply(this,arguments); var plan=getPlanFromDom(); b.paymentSchedule=plan; b.paymentPlan=plan; b.paymentPlanText=paymentSummary(b); b.paymentPlanMeta={entryValue:byId('jmEntryValue')?.value||'',entryDate:byId('jmEntryDate')?.value||'',installmentsCount:byId('jmInstallmentsCount')?.value||'',firstInstallmentDate:byId('jmFirstInstallmentDate')?.value||''}; var first=plan.find(x=>x.date); if(first)b.paymentDue=first.date; b.portalPaymentSchedule=plan; b.portalPaymentPlanText=b.paymentPlanText; return b;};
+  function bindDynamic(){ ['jmPaySingleDate','jmPayEntryPct','jmPayEntryDate','jmPayParcelCount','jmPayFirstDate','jmPayFinalDate','jmPayCustom'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('input',()=>{recalcPlan(); syncDue();}); }); }
+  function recalcPlan(){
+    const cond=val('jmPayCondition'), total=finalValue();
+    const rows=$('jmPayRows'), firstWrap=$('jmFirstDateWrap');
+    if((cond==='entrada_parcelas'||cond==='etapas') && rows){
+      const count=Math.max(0,Math.floor(num('jmPayParcelCount',0))); if(firstWrap) firstWrap.style.display=count>0?'':'none';
+      let html='';
+      for(let i=1;i<=count;i++){ const label=cond==='etapas'?`Etapa ${i}`:`Parcela ${i}`; const date=addMonths(val('jmPayFirstDate'),i-1); html += `<div class="jmPayRow"><input class="jmPayLabel" value="${label}"><input class="jmPayDate" type="date" value="${date}"><input class="jmPayValue" type="number" step="0.01"></div>`; }
+      rows.innerHTML=html;
+      const entryPct = cond==='entrada_parcelas' ? Math.max(0,Math.min(100,num('jmPayEntryPct',0))) : 0;
+      const remaining = total * (1-entryPct/100);
+      rows.querySelectorAll('.jmPayValue').forEach(inp=>{ if(!inp.value) inp.value = count ? (remaining/count).toFixed(2) : ''; inp.addEventListener('input',syncDue); });
+      rows.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',syncDue));
     }
-    if(typeof updateCalc==='function' && !window.__jmOldUpdateCalc){
-      window.__jmOldUpdateCalc=updateCalc;
-      updateCalc=window.updateCalc=function(){var r=window.__jmOldUpdateCalc.apply(this,arguments); try{syncTotals();}catch(e){} return r;};
+    const plan=collectPlan(); const sum=plan.reduce((a,p)=>a+(Number(p.value)||0),0); const t=$('jmPayTotal'); if(t) t.textContent = plan.length ? `Total programado: ${moeda(sum)}${total?` de ${moeda(total)}`:''}` : '';
+  }
+  function collectPlan(){
+    const cond=val('jmPayCondition'), total=finalValue(), out=[];
+    if(cond==='avista'){ out.push({label:'Pagamento à vista', date:val('jmPaySingleDate'), value:total}); }
+    else if(cond==='cinquenta'){ out.push({label:'Entrada - 50%', date:val('jmPayEntryDate'), value:total*.5},{label:'Pagamento final - 50%', date:val('jmPayFinalDate'), value:total*.5}); }
+    else if(cond==='entrada_parcelas'){
+      const pct=Math.max(0,Math.min(100,num('jmPayEntryPct',0))); if(pct>0) out.push({label:`Entrada - ${pct}%`, date:val('jmPayEntryDate'), value:total*pct/100});
+      document.querySelectorAll('#jmPayRows .jmPayRow').forEach(r=>out.push({label:r.querySelector('.jmPayLabel')?.value||'Parcela',date:r.querySelector('.jmPayDate')?.value||'',value:numFromEl(r.querySelector('.jmPayValue'))}));
+    } else if(cond==='etapas'){
+      document.querySelectorAll('#jmPayRows .jmPayRow').forEach(r=>out.push({label:r.querySelector('.jmPayLabel')?.value||'Etapa',date:r.querySelector('.jmPayDate')?.value||'',value:numFromEl(r.querySelector('.jmPayValue'))}));
     }
-    if(typeof resetForm==='function' && !window.__jmOldResetForm){
-      window.__jmOldResetForm=resetForm;
-      resetForm=window.resetForm=function(){var r=window.__jmOldResetForm.apply(this,arguments); setTimeout(function(){ensurePlanner(); suggestPlan(true);},50); return r;};
-    }
-    if(typeof editBudget==='function' && !window.__jmOldEditBudget){
-      window.__jmOldEditBudget=editBudget;
-      editBudget=window.editBudget=function(id){var r=window.__jmOldEditBudget.apply(this,arguments); setTimeout(function(){var b=(state.budgets||[]).find(x=>x.id===id); if(b)setPlanToDom(b);},80); return r;};
-    }
-    if(typeof proposalTemp==='function' && !window.__jmOldProposalTemp){
-      window.__jmOldProposalTemp=proposalTemp;
-      proposalTemp=window.proposalTemp=function(b){var r=window.__jmOldProposalTemp.apply(this,arguments); setTimeout(function(){injectPaymentDoc(b,false);},80); return r;};
-    }
-    if(typeof openContract==='function' && !window.__jmOldOpenContractPayPlan){
-      window.__jmOldOpenContractPayPlan=openContract;
-      openContract=window.openContract=function(id){var b=(state.budgets||[]).find(x=>x.id===id); var r=window.__jmOldOpenContractPayPlan.apply(this,arguments); setTimeout(function(){if(b)injectPaymentDoc(b,true);},100); return r;};
-    }
-    if(typeof renderFinance==='function' && !window.__jmOldRenderFinancePayPlan){
-      window.__jmOldRenderFinancePayPlan=renderFinance;
-      renderFinance=window.renderFinance=function(){var r=window.__jmOldRenderFinancePayPlan.apply(this,arguments); setTimeout(enhanceFinance,40); return r;};
-    }
-    enhancePortalFields();
+    return out.filter(p=>p.label||p.date||p.value);
   }
-
-  function injectPaymentDoc(b,isContract){
-    var root=byId('proposalPrint'); if(!root||!b)return;
-    var table=paymentTable(b); if(!table)return;
-    root.querySelectorAll('.jmPaymentScheduleDoc').forEach(x=>x.remove());
-    var payBox=root.querySelector('.proposalPaymentPremium');
-    if(payBox){payBox.innerHTML='<small>Condição de pagamento</small><b>'+esc(paymentSummary(b))+'</b>'; payBox.insertAdjacentHTML('afterend',table); return;}
-    if(isContract){
-      var clauses=Array.from(root.querySelectorAll('.clauseBlock'));
-      var c7=clauses.find(x=>(x.textContent||'').includes('HONORÁRIOS')||(x.textContent||'').includes('PAGAMENTO'));
-      if(c7){
-        var p72=Array.from(c7.querySelectorAll('p')).find(p=>(p.textContent||'').includes('7.2'));
-        if(p72) p72.innerHTML='7.2 A forma de pagamento será conforme o cronograma abaixo: <b>'+esc(paymentSummary(b))+'</b>';
-        c7.insertAdjacentHTML('beforeend',table); return;
-      }
-    }
-    var target=root.querySelector('.proposalSummaryBox,.proposalServiceItem,.contractSummary');
-    if(target) target.insertAdjacentHTML('afterend',table);
+  function numFromEl(el){ const n=Number(String(el?.value||'').replace(',','.')); return Number.isFinite(n)?n:0; }
+  function syncDue(){ const p=collectPlan().find(x=>x.date); if($('paymentDue')) $('paymentDue').value = p?.date || ''; }
+  function planText(b){
+    const cond=b.paymentCondition||''; const custom=String(b.paymentCustom||'').trim(); if(cond==='personalizado') return custom || 'Condição personalizada a combinar.';
+    const arr=Array.isArray(b.paymentPlan)?b.paymentPlan:[]; if(!arr.length) return 'Condição de pagamento a combinar.';
+    return arr.map(p=>`${p.label}: ${moeda(p.value)}${p.date?' em '+br(p.date):''}`).join(' • ');
   }
-
-  function enhanceFinance(){
-    try{
-      document.querySelectorAll('#financeRows tbody tr').forEach(function(tr){
-        var name=(tr.querySelector('td b')?.textContent||'').trim();
-        var b=(state.budgets||[]).find(x=>(x.cliente||'').trim()===name && Array.isArray(x.paymentSchedule) && x.paymentSchedule.length);
-        if(!b || tr.querySelector('.jmFinanceSchedule')) return;
-        var cell=tr.querySelector('td'); if(!cell)return;
-        cell.insertAdjacentHTML('beforeend','<div class="jmFinanceSchedule">'+b.paymentSchedule.slice(0,4).map(x=>'<span class="jmDuePill">'+esc(x.label)+' • '+br(x.date)+' • '+moneySafe(x.value)+'</span>').join('')+(b.paymentSchedule.length>4?'<span class="jmDuePill">+'+(b.paymentSchedule.length-4)+'</span>':'')+'</div>');
-      });
-    }catch(e){}
-  }
-
-  function enhancePortalFields(){
-    try{(state.budgets||[]).forEach(function(b){if(!Array.isArray(b.paymentSchedule)||!b.paymentSchedule.length)return;b.portalPaymentSchedule=b.paymentSchedule;b.portalPaymentPlanText=paymentSummary(b);b.paymentPlanText=b.portalPaymentPlanText;});}catch(e){}
-  }
-
-  function boot(){patchFunctions(); if(byId('jmPayPlanner') && !getRows().length) suggestPlan(false);}
-  setTimeout(boot,200); setTimeout(boot,900); setInterval(boot,2500);
-})();
-</script>
-
-
-<style id="jm-v55-condicao-pagamento-style">
-  #jmPayPlanner.jmModeVista .jmPayGrid,
-  #jmPayPlanner.jmModeVista .jmPayActions,
-  #jmPayPlanner.jmModeVista #jmPayRows,
-  #jmPayPlanner.jmModeVista #jmPayTotal{display:none!important}
-  #jmPayPlanner.jmModeHidden{display:none!important}
-  #jmPayPlanner .jmHiddenPayField{display:none!important}
-  .jmPayModeNote{display:block;margin:8px 0 0;color:var(--mut);font-size:12px;font-weight:700}
-  #paymentDueLabelOverride{font-weight:900}
-</style>
-<script id="jm-v55-condicao-pagamento-script">
-(function(){
-  if(window.__JM_PAYMENT_CONDITION_V55__) return;
-  window.__JM_PAYMENT_CONDITION_V55__ = true;
-
-  function byId(id){return document.getElementById(id)}
-  function n(v){return Number(String(v||'').replace(',','.'))||0}
-  function moneySafe(v){try{return typeof money==='function'?money(Number(v)||0):(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+(Number(v)||0).toFixed(2)}}
-  function br(iso){try{return iso?new Date(String(iso).slice(0,10)+'T00:00:00').toLocaleDateString('pt-BR'):'A combinar'}catch(e){return 'A combinar'}}
-  function esc(v){return String(v ?? '').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-  function isoToday(){var d=new Date();return d.toISOString().slice(0,10)}
-  function addMonths(iso, months){var d=iso?new Date(String(iso).slice(0,10)+'T00:00:00'):new Date(); if(isNaN(d))d=new Date(); var day=d.getDate(); d.setMonth(d.getMonth()+months); if(d.getDate()<day)d.setDate(0); return d.toISOString().slice(0,10)}
-  function currentTotal(){try{return calcFrom(objFromForm()).final||0}catch(e){return n(byId('negociado')&&byId('negociado').value)}}
-  function getRows(){return Array.from(document.querySelectorAll('#jmPayRows .jmPayRow'))}
-  function uidSafe(){try{return typeof uid==='function'?uid():'pay_'+Date.now().toString(36)+Math.random().toString(36).slice(2)}catch(e){return 'pay_'+Date.now().toString(36)}}
-
-  function rowHtml(label,value,date,type){
-    var id=uidSafe();
-    return `<div class="jmPayRow" data-pay-row="${esc(type||'installment')}" data-pay-id="${esc(id)}"><div><label>Descrição</label><input class="jmPayLabel" value="${esc(label)}"></div><div><label>Valor</label><input class="jmPayValue" type="number" min="0" step="0.01" value="${Number(value||0).toFixed(2)}"></div><div><label>Data</label><input class="jmPayDate" type="date" value="${esc(date||'')}"></div><button class="btn red" type="button" onclick="this.closest('.jmPayRow').remove(); window.jmSyncPaymentPlanTotals&&window.jmSyncPaymentPlanTotals();">Apagar</button></div>`;
-  }
-
-  function getMethod(){return byId('paymentMethod')?.value || 'À vista'}
-  function paymentDueField(){return byId('paymentDue')?.closest('.field') || null}
-  function fieldOf(id){return byId(id)?.closest('.field') || byId(id)?.parentElement || null}
-  function setLabelForPaymentDue(text){
-    var f=paymentDueField(); if(!f)return;
-    var lab=f.querySelector('label'); if(lab){lab.id='paymentDueLabelOverride'; lab.textContent=text;}
-  }
-  function hideField(id, hide){var f=fieldOf(id); if(f)f.classList.toggle('jmHiddenPayField',!!hide)}
-  function bindRows(){getRows().forEach(function(r){r.querySelectorAll('input').forEach(function(i){if(!i.__jmV55Bind){i.__jmV55Bind=true;i.addEventListener('input',function(){window.jmSyncPaymentPlanTotals&&window.jmSyncPaymentPlanTotals();});}});});}
-
-  function rowsToPlan(){
-    return getRows().map(function(r){return {id:r.dataset.payId||uidSafe(),type:r.dataset.payRow||'installment',label:(r.querySelector('.jmPayLabel')?.value||'Parcela').trim(),value:n(r.querySelector('.jmPayValue')?.value),date:r.querySelector('.jmPayDate')?.value||''}}).filter(function(x){return x.value>0||x.date||x.label});
-  }
-
-  function planForCurrentMode(){
-    var method=getMethod();
-    var total=currentTotal();
-    var due=byId('paymentDue')?.value||'';
-    if(method==='À vista'){
-      return due?[{id:uidSafe(),type:'single',label:'Pagamento à vista',value:total,date:due}]:[{id:uidSafe(),type:'single',label:'Pagamento à vista',value:total,date:''}];
-    }
-    if(method==='50% entrada + 50% na entrega'){
-      var entryDate=byId('jmEntryDate')?.value || due || '';
-      var secondDate=byId('jmFirstInstallmentDate')?.value || byId('entrega')?.value || '';
-      return [
-        {id:uidSafe(),type:'entry',label:'Entrada 50%',value:Math.round(total*0.50*100)/100,date:entryDate},
-        {id:uidSafe(),type:'installment',label:'Saldo 50%',value:Math.round(total*0.50*100)/100,date:secondDate}
-      ];
-    }
-    return rowsToPlan();
-  }
-
-  function syncTotalsV55(){
-    var total=currentTotal();
-    var plan=planForCurrentMode();
-    var sum=plan.reduce(function(a,x){return a+n(x.value)},0);
-    var el=byId('jmPayTotal');
-    if(el) el.innerHTML=`<span>Total do cronograma: <b>${moneySafe(sum)}</b></span><span>Valor do orçamento: <b>${moneySafe(total)}</b></span><span class="mini">Diferença: <b>${moneySafe(sum-total)}</b></span>`;
-    var first=plan.find(function(x){return x.date}); var pd=byId('paymentDue'); if(pd && first && getMethod()!=='À vista') pd.value=first.date;
-  }
-  window.jmSyncPaymentPlanTotals=syncTotalsV55;
-
-  function rebuildEntradaParcelas(force){
-    var wrap=byId('jmPayRows'); if(!wrap)return;
-    var total=currentTotal();
-    var count=Math.max(0,Math.floor(n(byId('jmInstallmentsCount')?.value)));
-    if(count===0 && byId('jmFirstInstallmentDate')) byId('jmFirstInstallmentDate').value='';
-    var entry=n(byId('jmEntryValue')?.value);
-    if(!entry && force) entry=Math.round(total*0.30*100)/100;
-    var entryDate=byId('jmEntryDate')?.value || byId('paymentDue')?.value || isoToday();
-    var firstDate=count>0 ? (byId('jmFirstInstallmentDate')?.value || addMonths(entryDate,1)) : '';
-    if(count>0 && byId('jmFirstInstallmentDate') && !byId('jmFirstInstallmentDate').value && force) byId('jmFirstInstallmentDate').value=firstDate;
-    var rest=Math.max(0,total-entry); var per=count?Math.round((rest/count)*100)/100:0;
-    var html=''; if(entry>0) html+=rowHtml('Entrada',entry,entryDate,'entry');
-    for(var i=1;i<=count;i++){var value=(i===count)?Math.round((rest-per*(count-1))*100)/100:per; html+=rowHtml('Parcela '+i+'/'+count,value,addMonths(firstDate,i-1),'installment');}
-    wrap.innerHTML=html; bindRows(); syncTotalsV55();
-  }
-
-  function rebuildHalfHalf(){
-    var total=currentTotal();
-    if(byId('jmEntryValue')) byId('jmEntryValue').value=(Math.round(total*0.50*100)/100).toFixed(2);
-    if(byId('jmInstallmentsCount')) byId('jmInstallmentsCount').value='1';
-    if(byId('jmEntryDate') && !byId('jmEntryDate').value) byId('jmEntryDate').value=byId('paymentDue')?.value || isoToday();
-    if(byId('jmFirstInstallmentDate') && !byId('jmFirstInstallmentDate').value) byId('jmFirstInstallmentDate').value=byId('entrega')?.value || '';
-    var wrap=byId('jmPayRows'); if(wrap){wrap.innerHTML=rowHtml('Entrada 50%',Math.round(total*0.50*100)/100,byId('jmEntryDate')?.value||'','entry')+rowHtml('Saldo 50%',Math.round(total*0.50*100)/100,byId('jmFirstInstallmentDate')?.value||'','installment'); bindRows();}
-    syncTotalsV55();
-  }
-
-  function applyMode(force){
-    var planner=byId('jmPayPlanner'); if(!planner)return;
-    var method=getMethod();
-    planner.classList.toggle('jmModeVista',method==='À vista');
-    planner.classList.toggle('jmModeHidden',method==='À vista');
-    var note=byId('jmPayModeNote'); if(!note){note=document.createElement('span'); note.id='jmPayModeNote'; note.className='jmPayModeNote'; planner.insertBefore(note,planner.children[1]||null);}
-
-    if(method==='À vista'){
-      setLabelForPaymentDue('Data do pagamento');
-      note.textContent='Pagamento à vista: informe apenas a data do pagamento no campo acima.';
-      if(byId('jmPayRows')) byId('jmPayRows').innerHTML='';
-    }else{
-      setLabelForPaymentDue('Primeiro vencimento / entrada');
-    }
-
-    if(method==='50% entrada + 50% na entrega'){
-      planner.classList.remove('jmModeHidden','jmModeVista');
-      note.textContent='Condição 50/50: informe a data da entrada e a data do saldo, normalmente na entrega.';
-      hideField('jmEntryValue',false); hideField('jmEntryDate',false); hideField('jmInstallmentsCount',true); hideField('jmFirstInstallmentDate',false);
-      var l=fieldOf('jmFirstInstallmentDate')?.querySelector('label'); if(l) l.textContent='Data do saldo / entrega';
-      document.querySelector('#jmAutoPlanBtn')?.classList.remove('jmHiddenPayField');
-      document.querySelector('#jmAddPayRowBtn')?.classList.add('jmHiddenPayField');
-      if(force) rebuildHalfHalf(); else syncTotalsV55();
-    }else if(method==='Entrada + parcelas'){
-      planner.classList.remove('jmModeHidden','jmModeVista');
-      note.textContent='Entrada + parcelas: informe a entrada, a quantidade de parcelas e a primeira data. Se colocar 0 parcelas, não será sugerida data de primeira parcela.';
-      hideField('jmEntryValue',false); hideField('jmEntryDate',false); hideField('jmInstallmentsCount',false); hideField('jmFirstInstallmentDate',Math.max(0,Math.floor(n(byId('jmInstallmentsCount')?.value)))===0);
-      var l2=fieldOf('jmFirstInstallmentDate')?.querySelector('label'); if(l2) l2.textContent='1ª parcela';
-      document.querySelector('#jmAutoPlanBtn')?.classList.remove('jmHiddenPayField');
-      document.querySelector('#jmAddPayRowBtn')?.classList.remove('jmHiddenPayField');
-      if(force) rebuildEntradaParcelas(true); else syncTotalsV55();
-    }else if(method==='Por etapas' || method==='Personalizado'){
-      planner.classList.remove('jmModeHidden','jmModeVista');
-      note.textContent=method==='Por etapas'?'Por etapas: adicione manualmente cada etapa, valor e data.':'Personalizado: escreva a condição no campo personalizado e, se quiser, adicione etapas manuais.';
-      hideField('jmEntryValue',true); hideField('jmEntryDate',true); hideField('jmInstallmentsCount',true); hideField('jmFirstInstallmentDate',true);
-      document.querySelector('#jmAutoPlanBtn')?.classList.add('jmHiddenPayField');
-      document.querySelector('#jmAddPayRowBtn')?.classList.remove('jmHiddenPayField');
-      if(force && !getRows().length){byId('jmAddPayRowBtn')?.click();}
-      syncTotalsV55();
-    }
-    syncTotalsV55();
-  }
-
-  function ensureBindings(){
-    if(!byId('paymentMethod') || !byId('jmPayPlanner')) return;
-    if(!byId('jmInstallmentsCount').__jmV55CountBind){
-      byId('jmInstallmentsCount').__jmV55CountBind=true;
-      byId('jmInstallmentsCount').addEventListener('input',function(){
-        var count=Math.max(0,Math.floor(n(this.value)));
-        if(count===0 && byId('jmFirstInstallmentDate')) byId('jmFirstInstallmentDate').value='';
-        applyMode(false);
-        if(getMethod()==='Entrada + parcelas') rebuildEntradaParcelas(false);
-      });
-    }
-    ['paymentMethod','paymentDue','jmEntryValue','jmEntryDate','jmFirstInstallmentDate','paymentCustom','entrega','negociado','area'].forEach(function(id){
-      var el=byId(id); if(el && !el.__jmV55Bind){el.__jmV55Bind=true; el.addEventListener(id==='paymentMethod'?'change':'input',function(){applyMode(id==='paymentMethod');});}
-    });
-    var auto=byId('jmAutoPlanBtn'); if(auto && !auto.__jmV55Auto){auto.__jmV55Auto=true; auto.addEventListener('click',function(e){setTimeout(function(){if(getMethod()==='50% entrada + 50% na entrega')rebuildHalfHalf(); else if(getMethod()==='Entrada + parcelas')rebuildEntradaParcelas(true);},30);},true);}
-    bindRows(); applyMode(false);
-  }
-
-  function summaryFromPlan(b){
-    var method=String(b?.paymentMethod||'À vista');
-    var custom=String(b?.paymentCustom||'').trim();
-    var arr=Array.isArray(b?.paymentSchedule)?b.paymentSchedule:[];
-    if(method==='Personalizado' && custom && !arr.length) return custom;
-    if(arr.length) return arr.map(function(x){return `${x.label}: ${moneySafe(x.value)}${x.date?' em '+br(x.date):''}`}).join('; ')+'.';
-    if(custom) return custom;
-    return method || 'Conforme combinado entre as partes.';
-  }
-  function tableFromPlan(b){
-    var arr=Array.isArray(b?.paymentSchedule)?b.paymentSchedule:[];
-    if(!arr.length)return '';
-    var total=arr.reduce(function(a,x){return a+n(x.value)},0);
-    return `<div class="jmPaymentScheduleDoc"><h3>Cronograma de pagamentos</h3><table><thead><tr><th>Etapa</th><th>Data</th><th>Valor</th></tr></thead><tbody>${arr.map(function(x){return `<tr><td>${esc(x.label)}</td><td>${br(x.date)}</td><td>${moneySafe(x.value)}</td></tr>`}).join('')}<tr><td colspan="2"><b>Total</b></td><td><b>${moneySafe(total)}</b></td></tr></tbody></table></div>`;
-  }
-  window.jmPaymentSummary=summaryFromPlan; window.jmPaymentTable=tableFromPlan;
-
-  function installObjectPatch(){
-    if(typeof window.objFromForm==='function' && !window.objFromForm.__jmV55Obj){
-      var old=window.objFromForm;
-      window.objFromForm=function(){
-        var b=old.apply(this,arguments);
-        b.paymentMethod=getMethod();
-        b.paymentCustom=byId('paymentCustom')?.value?.trim()||'';
-        var plan=planForCurrentMode();
-        b.paymentSchedule=plan; b.paymentPlan=plan; b.paymentPlanText=summaryFromPlan(b);
-        b.paymentPlanMeta={entryValue:byId('jmEntryValue')?.value||'',entryDate:byId('jmEntryDate')?.value||'',installmentsCount:byId('jmInstallmentsCount')?.value||'',firstInstallmentDate:byId('jmFirstInstallmentDate')?.value||'',mode:b.paymentMethod};
-        var first=plan.find(function(x){return x.date});
-        if(first) b.paymentDue=first.date;
-        b.portalPaymentSchedule=plan; b.portalPaymentPlanText=b.paymentPlanText;
-        return b;
-      };
-      window.objFromForm.__jmV55Obj=true;
-    }
-  }
-
-  function patchEditReset(){
-    if(typeof window.resetForm==='function' && !window.resetForm.__jmV55Reset){
-      var oldReset=window.resetForm;
-      window.resetForm=function(){var r=oldReset.apply(this,arguments); setTimeout(function(){if(byId('paymentMethod'))byId('paymentMethod').value='À vista'; if(byId('paymentDue'))byId('paymentDue').value=''; applyMode(true);},120); return r;};
-      window.resetForm.__jmV55Reset=true;
-    }
-    if(typeof window.editBudget==='function' && !window.editBudget.__jmV55Edit){
-      var oldEdit=window.editBudget;
-      window.editBudget=function(id){var r=oldEdit.apply(this,arguments); setTimeout(function(){var b=(window.state?.budgets||[]).find(function(x){return x.id===id}); if(!b)return; if(byId('paymentMethod'))byId('paymentMethod').value=b.paymentMethod||b.paymentPlanMeta?.mode||'À vista'; if(byId('paymentDue'))byId('paymentDue').value=b.paymentDue||''; if(byId('jmEntryValue'))byId('jmEntryValue').value=b.paymentPlanMeta?.entryValue||''; if(byId('jmEntryDate'))byId('jmEntryDate').value=b.paymentPlanMeta?.entryDate||''; if(byId('jmInstallmentsCount'))byId('jmInstallmentsCount').value=b.paymentPlanMeta?.installmentsCount ?? ''; if(byId('jmFirstInstallmentDate'))byId('jmFirstInstallmentDate').value=b.paymentPlanMeta?.firstInstallmentDate||''; applyMode(false);},180); return r;};
-      window.editBudget.__jmV55Edit=true;
-    }
-  }
-
-  function boot(){ensureBindings(); installObjectPatch(); patchEditReset();}
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,250);});
-  setTimeout(boot,400); setTimeout(boot,1200); setInterval(boot,2500);
-})();
-</script>
-
-<!-- JM Neto - ajuste definitivo da condição de pagamento v56 -->
-<style id="jm-v56-payment-condition-style">
-  #jmPayPlanner.jmV56Hidden{display:none!important}
-  #jmPayPlanner .jmV56Grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px;margin-top:12px}
-  #jmPayPlanner .jmV56Grid .field{margin:0!important}
-  #jmPayPlanner .jmV56Actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-  #jmPayPlanner .jmV56Rows{display:grid;gap:8px;margin-top:10px}
-  #jmPayPlanner .jmV56Row{display:grid;grid-template-columns:1.2fr 1fr 1fr auto;gap:8px;align-items:end;border:1px solid var(--line);border-radius:16px;padding:10px;background:rgba(0,0,0,.10)}
-  #jmPayPlanner .jmV56Row label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:900}
-  #jmPayPlanner .jmV56Row input{width:100%}
-  #jmPayPlanner .jmV56Total{display:flex;justify-content:space-between;gap:12px;align-items:center;border-top:1px solid var(--line);margin-top:12px;padding-top:12px;flex-wrap:wrap}
-  #jmPayPlanner .jmV56Note{display:block;color:var(--mut);font-size:13px;margin-top:6px}
-  .jmV56FieldHidden{display:none!important}
-  @media(max-width:900px){#jmPayPlanner .jmV56Grid{grid-template-columns:1fr 1fr}#jmPayPlanner .jmV56Row{grid-template-columns:1fr 1fr}#jmPayPlanner .jmV56Row button{grid-column:1/-1}}
-</style>
-<script id="jm-v56-payment-condition-script">
-(function(){
-  if(window.__JM_PAYMENT_V56__) return; window.__JM_PAYMENT_V56__=true;
-  const $=id=>document.getElementById(id);
-  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  const n=v=>Number(String(v??'').replace(',','.'))||0;
-  const br=iso=>{try{return iso?new Date(String(iso).slice(0,10)+'T00:00:00').toLocaleDateString('pt-BR'):'A combinar'}catch(e){return 'A combinar'}};
-  const moeda=v=>{try{return typeof money==='function'?money(n(v)):n(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+n(v).toFixed(2)}};
-  const today=()=>new Date().toISOString().slice(0,10);
-  function addMonths(iso, months){let d=iso?new Date(String(iso).slice(0,10)+'T00:00:00'):new Date(); if(isNaN(d))d=new Date(); const day=d.getDate(); d.setMonth(d.getMonth()+months); if(d.getDate()<day)d.setDate(0); return d.toISOString().slice(0,10)}
-  function fieldOf(id){return $(id)?.closest('.field') || $(id)?.parentElement || null}
-  function hideField(id, hide){const f=fieldOf(id); if(f) f.classList.toggle('jmV56FieldHidden',!!hide)}
-  function totalAtual(){
-    try{
-      const b={cliente:$('cliente')?.value||'',telefone:$('telefone')?.value||'',cidade:$('cidade')?.value||'',endereco:$('endereco')?.value||'',tipoCliente:$('tipoCliente')?.value,padrao:$('padrao')?.value,area:n($('area')?.value),prazo:$('prazo')?.value,dificuldade:$('dificuldade')?.value,perfil:$('perfil')?.value,chance:$('chance')?.value,desconto:n($('desconto')?.value),horas:n($('horas')?.value),custo:n($('custo')?.value),negociado:n($('negociado')?.value),projetos:(typeof selectedProjects==='function'?selectedProjects():['Arquitetônico'])};
-      return n(calcFrom(b).final);
-    }catch(e){return n($('negociado')?.value)}
-  }
-  function ensureMethod(){
-    const sel=$('paymentMethod'); if(!sel) return;
-    if(!sel.querySelector('option[value=""]')) sel.insertAdjacentHTML('afterbegin','<option value="">Selecione a condição de pagamento</option>');
-    if(!sel.dataset.jmV56Touched){sel.value=''; sel.dataset.jmV56Touched='1'}
-  }
-  function ensurePlanner(){
-    let planner=$('jmPayPlanner'); const due=$('paymentDue'); if(!due) return null;
-    if(!planner){planner=document.createElement('div'); planner.id='jmPayPlanner'; planner.className='field full jmPayPlanner'; (due.closest('.field')||due.parentElement).insertAdjacentElement('afterend',planner)}
-    return planner;
-  }
-  function method(){return $('paymentMethod')?.value || ''}
-  function rowHtml(label,value,date,type){return `<div class="jmV56Row" data-type="${esc(type||'installment')}"><div><label>Descrição</label><input class="jmV56Label" value="${esc(label)}"></div><div><label>Valor</label><input class="jmV56Value" type="number" min="0" step="0.01" value="${Number(value||0).toFixed(2)}"></div><div><label>Data</label><input class="jmV56Date" type="date" value="${esc(date||'')}"></div><button class="btn red" type="button" onclick="this.closest('.jmV56Row').remove(); window.jmV56Sync&&window.jmV56Sync();">Apagar</button></div>`}
-  function rows(){return Array.from(document.querySelectorAll('#jmPayPlanner .jmV56Row'))}
-  function planFromRows(){return rows().map(r=>({id:'pay_'+Math.random().toString(36).slice(2),type:r.dataset.type||'installment',label:(r.querySelector('.jmV56Label')?.value||'Parcela').trim(),value:n(r.querySelector('.jmV56Value')?.value),date:r.querySelector('.jmV56Date')?.value||''})).filter(x=>x.value>0||x.date||x.label)}
-  function bindPlanner(){
-    document.querySelectorAll('#jmPayPlanner input').forEach(el=>{if(!el.dataset.jmV56Bind){el.dataset.jmV56Bind='1'; el.addEventListener('input',()=>{if(el.id==='jmInstallmentsCount') buildEntradaParcelas(false); else sync();});}});
-  }
-  function sync(){
-    const p=planAtual(); const sum=p.reduce((a,x)=>a+n(x.value),0), total=totalAtual();
-    const el=$('jmV56Total'); if(el) el.innerHTML=`<span>Total do cronograma: <b>${moeda(sum)}</b></span><span>Valor do orçamento: <b>${moeda(total)}</b></span><span class="mini">Diferença: <b>${moeda(sum-total)}</b></span>`;
-    try{if(typeof updateCalc==='function' && !window.__jmV56Updating){window.__jmV56Updating=true; setTimeout(()=>{window.__jmV56Updating=false},0)}}catch(e){}
-  }
-  window.jmV56Sync=sync;
-  function planAtual(){
-    const total=totalAtual(), m=method();
-    if(m==='À vista') return [{id:'pay_vista',type:'single',label:'Pagamento à vista',value:total,date:$('paymentDue')?.value||''}];
-    if(m==='50% entrada + 50% na entrega') return [
-      {id:'pay_ent',type:'entry',label:'Entrada 50%',value:Math.round(total*50)/100,date:$('jmEntryDate')?.value||''},
-      {id:'pay_saldo',type:'installment',label:'Saldo 50%',value:Math.round(total*50)/100,date:$('jmFirstInstallmentDate')?.value||$('entrega')?.value||''}
-    ];
-    return planFromRows();
-  }
-  function buildEntradaParcelas(force){
-    const total=totalAtual(), planner=ensurePlanner(); if(!planner) return;
-    const count=Math.max(0,Math.floor(n($('jmInstallmentsCount')?.value)));
-    if(count===0 && $('jmFirstInstallmentDate')) $('jmFirstInstallmentDate').value='';
-    hideField('jmFirstInstallmentDate',count===0);
-    let entry=n($('jmEntryValue')?.value); if(!entry && force) entry=Math.round(total*0.30*100)/100;
-    if(force && $('jmEntryValue')) $('jmEntryValue').value=entry?entry.toFixed(2):'';
-    const entryDate=$('jmEntryDate')?.value || today();
-    const first=count>0 ? ($('jmFirstInstallmentDate')?.value || addMonths(entryDate,1)) : '';
-    if(force && count>0 && $('jmFirstInstallmentDate')) $('jmFirstInstallmentDate').value=first;
-    const rest=Math.max(0,total-entry), per=count?Math.round(rest/count*100)/100:0;
-    let html=''; if(entry>0) html+=rowHtml('Entrada',entry,$('jmEntryDate')?.value||'', 'entry');
-    for(let i=1;i<=count;i++){const val=i===count?Math.round((rest-per*(count-1))*100)/100:per; html+=rowHtml(`Parcela ${i}/${count}`,val,addMonths(first,i-1),'installment')}
-    $('jmV56Rows').innerHTML=html; bindPlanner(); sync();
-  }
-  function renderMode(force){
-    ensureMethod(); const planner=ensurePlanner(); if(!planner) return; const m=method();
-    hideField('paymentDue',m!=='À vista');
-    const dueLabel=fieldOf('paymentDue')?.querySelector('label'); if(dueLabel) dueLabel.textContent='Data do pagamento';
-    if(!m){planner.classList.add('jmV56Hidden'); return;}
-    if(m==='À vista'){planner.classList.add('jmV56Hidden'); sync(); return;}
-    planner.classList.remove('jmV56Hidden');
-    if(planner.dataset.v56Mode!==m || force){
-      planner.dataset.v56Mode=m;
-      let title='Condição de pagamento', note='';
-      if(m==='Entrada + parcelas') note='Preencha a entrada e a quantidade de parcelas. Se colocar 0 parcelas, o campo da 1ª parcela some e nenhuma data é sugerida.';
-      if(m==='50% entrada + 50% na entrega') note='Preencha a data da entrada e a data do saldo/entrega.';
-      if(m==='Por etapas') note='Adicione manualmente cada etapa, valor e data.';
-      if(m==='Personalizado') note='Escreva a condição personalizada e, se quiser, detalhe as etapas abaixo.';
-      planner.innerHTML=`<h4>${title}</h4><span class="jmV56Note">${note}</span><div class="jmV56Grid"></div><div class="jmV56Actions"></div><div id="jmV56Rows" class="jmV56Rows"></div><div id="jmV56Total" class="jmV56Total"></div>`;
-      const grid=planner.querySelector('.jmV56Grid'), actions=planner.querySelector('.jmV56Actions');
-      if(m==='Entrada + parcelas'){
-        grid.innerHTML='<div class="field"><label>Valor da entrada</label><input id="jmEntryValue" type="number" min="0" step="0.01" placeholder="30% automático"></div><div class="field"><label>Data da entrada</label><input id="jmEntryDate" type="date"></div><div class="field"><label>Quantidade de parcelas</label><input id="jmInstallmentsCount" type="number" min="0" max="48" step="1" value="0"></div><div class="field"><label>1ª parcela</label><input id="jmFirstInstallmentDate" type="date"></div>';
-        actions.innerHTML='<button class="btn" type="button" id="jmV56Auto">Calcular automático</button><button class="btn ghost" type="button" id="jmV56Manual">Adicionar parcela manual</button>';
-        $('jmV56Auto').onclick=()=>buildEntradaParcelas(true); $('jmV56Manual').onclick=()=>{$('jmV56Rows').insertAdjacentHTML('beforeend',rowHtml('Parcela manual',0,'','installment')); bindPlanner(); sync();};
-        buildEntradaParcelas(false);
-      }else if(m==='50% entrada + 50% na entrega'){
-        const half=Math.round(totalAtual()*0.50*100)/100;
-        grid.innerHTML=`<div class="field"><label>Data da entrada</label><input id="jmEntryDate" type="date"></div><div class="field"><label>Data do saldo / entrega</label><input id="jmFirstInstallmentDate" type="date" value="${esc($('entrega')?.value||'')}"></div>`;
-        $('jmV56Rows').innerHTML=rowHtml('Entrada 50%',half,'','entry')+rowHtml('Saldo 50%',half,$('entrega')?.value||'','installment');
-      }else{
-        if(m==='Personalizado') grid.innerHTML='<div class="field full"><label>Texto da condição personalizada</label><input id="paymentCustom" placeholder="Ex: 40% na assinatura + 2 parcelas de 30%"></div>';
-        actions.innerHTML='<button class="btn ghost" type="button" id="jmV56Manual">Adicionar etapa/parcela</button>';
-        $('jmV56Manual').onclick=()=>{$('jmV56Rows').insertAdjacentHTML('beforeend',rowHtml('Etapa '+(rows().length+1),0,'','stage')); bindPlanner(); sync();};
-      }
-    }
-    bindPlanner(); sync();
-  }
-  function resumoPagamento(b){const arr=Array.isArray(b?.paymentSchedule)?b.paymentSchedule:[]; const custom=String(b?.paymentCustom||'').trim(); if(b?.paymentMethod==='Personalizado' && custom && !arr.length)return custom; if(arr.length)return arr.map(x=>`${x.label}: ${moeda(x.value)}${x.date?' em '+br(x.date):''}`).join('; ')+'.'; return b?.paymentMethod||'A combinar.';}
-  function tabelaPagamento(b){const arr=Array.isArray(b?.paymentSchedule)?b.paymentSchedule:[]; if(!arr.length)return ''; const total=arr.reduce((a,x)=>a+n(x.value),0); return `<div class="jmPaymentScheduleDoc"><h3>Cronograma de pagamentos</h3><table><thead><tr><th>Etapa</th><th>Data</th><th>Valor</th></tr></thead><tbody>${arr.map(x=>`<tr><td>${esc(x.label)}</td><td>${br(x.date)}</td><td>${moeda(x.value)}</td></tr>`).join('')}<tr><td colspan="2"><b>Total</b></td><td><b>${moeda(total)}</b></td></tr></tbody></table></div>`}
-  window.jmPaymentSummary=resumoPagamento; window.jmPaymentTable=tabelaPagamento;
-  function patchObj(){if(typeof window.objFromForm==='function' && !window.objFromForm.__jmV56){const old=window.objFromForm; window.objFromForm=function(){const b=old.apply(this,arguments); b.paymentMethod=method(); b.paymentCustom=$('paymentCustom')?.value?.trim()||''; const p=planAtual(); b.paymentSchedule=p; b.paymentPlan=p; b.paymentPlanText=resumoPagamento(b); b.paymentPlanMeta={mode:b.paymentMethod,entryValue:$('jmEntryValue')?.value||'',entryDate:$('jmEntryDate')?.value||'',installmentsCount:$('jmInstallmentsCount')?.value||'',firstInstallmentDate:$('jmFirstInstallmentDate')?.value||''}; const first=p.find(x=>x.date); b.paymentDue=first?first.date:''; b.portalPaymentSchedule=p; b.portalPaymentPlanText=b.paymentPlanText; return b}; window.objFromForm.__jmV56=true;}}
-  function patchResetEdit(){
-    if(typeof window.resetForm==='function' && !window.resetForm.__jmV56){const old=window.resetForm; window.resetForm=function(){const r=old.apply(this,arguments); setTimeout(()=>{ensureMethod(); $('paymentMethod').value=''; if($('paymentDue'))$('paymentDue').value=''; renderMode(true);},80); return r}; window.resetForm.__jmV56=true;}
-    if(typeof window.editBudget==='function' && !window.editBudget.__jmV56){const old=window.editBudget; window.editBudget=function(id){const r=old.apply(this,arguments); setTimeout(()=>{const b=(window.state?.budgets||[]).find(x=>x.id===id); ensureMethod(); if(b&&$('paymentMethod')) $('paymentMethod').value=b.paymentMethod||b.paymentPlanMeta?.mode||''; if(b&&$('paymentDue')) $('paymentDue').value=b.paymentDue||''; renderMode(true); if(b&&Array.isArray(b.paymentSchedule)&&b.paymentSchedule.length&&$('jmV56Rows')){$('jmV56Rows').innerHTML=b.paymentSchedule.map(x=>rowHtml(x.label,x.value,x.date,x.type)).join(''); bindPlanner(); sync();}},200); return r}; window.editBudget.__jmV56=true;}
-  }
-  function bindGlobal(){const sel=$('paymentMethod'); if(sel&&!sel.dataset.jmV56Main){sel.dataset.jmV56Main='1'; sel.addEventListener('change',()=>{sel.dataset.jmV56User='1'; renderMode(true);});} ['paymentDue','entrega','area','negociado','desconto','horas','custo'].forEach(id=>{const el=$(id); if(el&&!el.dataset.jmV56Global){el.dataset.jmV56Global='1'; el.addEventListener('input',()=>renderMode(false));}})}
-  function boot(){ensureMethod(); ensurePlanner(); bindGlobal(); patchObj(); patchResetEdit(); renderMode(false);}
-  document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,300)); setTimeout(boot,500); setTimeout(boot,1300); setInterval(boot,1000);
+  function planTable(b){ const arr=Array.isArray(b.paymentPlan)?b.paymentPlan:[]; if(!arr.length) return ''; return `<div class="jmPaymentScheduleDoc"><h3>Cronograma de pagamentos</h3><table><thead><tr><th>Etapa</th><th>Data</th><th style="text-align:right">Valor</th></tr></thead><tbody>${arr.map(p=>`<tr><td>${esc(p.label)}</td><td>${br(p.date)}</td><td style="text-align:right"><b>${moeda(p.value)}</b></td></tr>`).join('')}</tbody></table></div>`; }
+  const oldObj=window.objFromForm;
+  const oldEdit=window.editBudget;
+  const oldReset=window.resetForm;
+  const oldProposal=window.proposalTemp;
+  const oldOpenProposal=window.openProposal;
+  const oldOpenContract=window.openContract;
+  window.objFromForm=function(){ const b=oldObj?oldObj.apply(this,arguments):{}; ensureUI(); b.paymentCondition=val('jmPayCondition'); b.paymentPlan=collectPlan(); b.paymentCustom=val('jmPayCustom'); b.paymentMethod=b.paymentCondition || b.paymentMethod || ''; b.paymentDue=(b.paymentPlan.find(p=>p.date)||{}).date || ''; return b; };
+  window.resetForm=function(){ if(oldReset) oldReset.apply(this,arguments); ensureUI(); if($('jmPayCondition')) $('jmPayCondition').value=''; renderDynamic(); };
+  window.editBudget=function(id){ if(oldEdit) oldEdit.apply(this,arguments); ensureUI(); const b=window.state?.budgets?.find(x=>x.id===id); if(!b) return; if($('jmPayCondition')) $('jmPayCondition').value=b.paymentCondition||''; renderDynamic(); // simples: preserva resumo salvo, mas deixa editar novamente
+  };
+  window.proposalTemp=function(b){ b=b||window.objFromForm(); if(oldProposal) oldProposal.call(this,b); setTimeout(()=>{ const box=$('proposalPrint'); if(box && !box.querySelector('.jmPaymentScheduleDoc')) box.insertAdjacentHTML('beforeend', `<div class="proposalDoc"> <div class="proposalBody"><h3>Condição de pagamento</h3><p>${esc(planText(b))}</p>${planTable(b)}</div></div>`); },0); };
+  window.previewProposal=function(){ window.proposalTemp(window.objFromForm()); };
+  window.openProposal=function(id){ const b=window.state?.budgets?.find(x=>x.id===id); if(!b) return (window.toastMsg?toastMsg('Orçamento não encontrado.'):alert('Orçamento não encontrado.')); window.proposalTemp(b); };
+  window.openContract=function(id){ const b=window.state?.budgets?.find(x=>x.id===id); if(oldOpenContract) oldOpenContract.apply(this,arguments); setTimeout(()=>{ const box=$('contractPrint')||$('contractContent'); if(box && b && !box.querySelector('.jmPaymentScheduleDoc')) box.insertAdjacentHTML('beforeend', `<div class="contractDoc"><h2>Condição de pagamento</h2><p>${esc(planText(b))}</p>${planTable(b)}</div>`); },0); };
+  function start(){ css(); ensureUI(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
 })();
 </script>
 
