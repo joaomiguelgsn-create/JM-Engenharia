@@ -6066,6 +6066,12 @@ init();
     'Arquitetônico':[5,6,9],
     'Combo Completo':[27,36,54]
   };
+  // Descontos progressivos: ao contratar mais disciplinas, o abatimento aumenta.
+  // Percentuais específicos para pares usuais podem ser personalizados por categoria.
+  const COMBO_RES = {dois:5,eleHidro:7,arqEstr:6,tres:10};
+  const COMBO_GAL = {dois:3,eleHidro:4,arqEstr:4,tres:5};
+  BASE.comboResidencial = {...COMBO_RES};
+  BASE.comboGalpao = {...COMBO_GAL};
   const deep = obj=>JSON.parse(JSON.stringify(obj));
   const oldCalcFrom = window.calcFrom;
   let baseEditing = false;
@@ -6098,6 +6104,8 @@ init();
     BASE.precos=deep({...RES,...(cb.precos||{})});
     BASE.galpao=deep({...GAL,...(cb.galpao||{})});
     ['padrao','prazo','dificuldade','perfil','tipoCliente','chance','combo'].forEach(k=>{if(cb[k])BASE[k]=deep(cb[k]);});
+    BASE.comboResidencial={...COMBO_RES,...(cb.comboResidencial||{})};
+    BASE.comboGalpao={...COMBO_GAL,...(cb.comboGalpao||{})};
   }
   function persistBaseIntoState(){
     const previous=state.customBase||{};
@@ -6106,7 +6114,8 @@ init();
       padrao:deep(BASE.padrao),prazo:deep(BASE.prazo),
       dificuldade:deep(BASE.dificuldade),perfil:deep(BASE.perfil),
       tipoCliente:deep(BASE.tipoCliente),chance:deep(BASE.chance),
-      combo:deep(BASE.combo),jmPriceVersion:VERSION
+      combo:deep(BASE.combo),comboResidencial:deep(BASE.comboResidencial),
+      comboGalpao:deep(BASE.comboGalpao),jmPriceVersion:VERSION
     };
     state.jmPriceSettingsUpdatedAt = new Date().toISOString();
   }
@@ -6133,6 +6142,8 @@ init();
       freezeLegacyBudgets();
       BASE.precos=deep(RES);
       BASE.galpao=deep(GAL);
+      BASE.comboResidencial=deep(COMBO_RES);
+      BASE.comboGalpao=deep(COMBO_GAL);
       persistBaseIntoState();
       saveLocal();
       if(typeof queueCloudSave==='function')queueCloudSave();
@@ -6151,13 +6162,12 @@ init();
     }
     const prices=group(tipo(b));
     const ar=Math.max(0,Number(b.area)||0);
-    const ps=(Array.isArray(b.projetos)&&b.projetos.length)?b.projetos:['Arquitetônico'];
-    const isDirect=ps.includes('Combo Completo');
-    const four=DISCIPLINAS.every(p=>ps.includes(p));
-    // Um conjunto das quatro disciplinas custa o mesmo que selecionar o Combo Completo.
-    const isFull=isDirect||four;
-    const usePs=isDirect?['Combo Completo']:ps;
-    const lines=usePs.map(p=>{
+    const originalPs=(Array.isArray(b.projetos)&&b.projetos.length)?b.projetos:['Arquitetônico'];
+    const selected=[...new Set(originalPs.filter(p=>DISCIPLINAS.includes(p)))];
+    const isDirect=originalPs.includes('Combo Completo');
+    const isFull=isDirect||DISCIPLINAS.every(p=>selected.includes(p));
+    // Mesmo o item 'Combo Completo' mostra as quatro disciplinas na proposta.
+    const lines=(isFull?DISCIPLINAS:selected).map(p=>{
       const v=prices[p]||[0,0,0];
       return {p,min:ar*v[0],sug:ar*v[1],max:ar*v[2]};
     });
@@ -6165,17 +6175,26 @@ init();
     const brutoMin=lines.reduce((a,l)=>a+l.min,0);
     const brutoMax=lines.reduce((a,l)=>a+l.max,0);
     const fator=['padrao','prazo','dificuldade','perfil','tipoCliente'].reduce((v,k)=>v*(Number(BASE[k]?.[b[k]])||1),1);
+    const rules=tipo(b)==='Galpão'?BASE.comboGalpao:BASE.comboResidencial;
     let combo='Sem combo',descCombo=0;
     let pacote=[brutoMin,bruto,brutoMax];
+    const n=lines.length;
     if(isFull){
-      combo='Combo Completo';
+      combo='Combo completo • 4 projetos';
       pacote=(prices['Combo Completo']||[0,0,0]).map(x=>ar*x);
       descCombo=bruto>0?Math.max(0,1-pacote[1]/bruto):0;
-    } else if(usePs.length===2 && usePs.includes('Elétrico')&&usePs.includes('Hidrossanitário')) {
-      combo='Elétrico + Hidro';descCombo=Math.max(0,Math.min(.95,Number(BASE.combo['Elétrico + Hidro'])||0));
+    } else if(n===3){
+      combo='Pacote de 3 projetos';
+      descCombo=(Number(rules.tres)||0)/100;
       pacote=[brutoMin,bruto,brutoMax].map(x=>x*(1-descCombo));
-    } else if(usePs.length>=2){
-      combo='Pacote por itens';descCombo=Math.max(0,Math.min(.95,Number(BASE.combo['Pacote por itens'])||0));
+    } else if(n===2){
+      if(selected.includes('Elétrico')&&selected.includes('Hidrossanitário')){
+        combo='Elétrico + Hidrossanitário';descCombo=(Number(rules.eleHidro)||0)/100;
+      }else if(selected.includes('Arquitetônico')&&selected.includes('Estrutural')){
+        combo='Arquitetônico + Estrutural';descCombo=(Number(rules.arqEstr)||0)/100;
+      }else{
+        combo='Pacote de 2 projetos';descCombo=(Number(rules.dois)||0)/100;
+      }
       pacote=[brutoMin,bruto,brutoMax].map(x=>x*(1-descCombo));
     }
     const descExtra=Math.min(1,Math.max(0,(Number(b.desconto)||0)/100));
@@ -6187,7 +6206,8 @@ init();
       ...l,
       valor:(bruto>0 ? final*l.sug/bruto : 0)
     }));
-    return {ps:usePs,linhas,bruto,brutoMin,brutoMax,
+    return {ps:isDirect?['Combo Completo']:selected,linhas,bruto,brutoMin,brutoMax,
+      pacoteBruto:pacote[1],economiaPacote:Math.max(0,(bruto-pacote[1])*fator),
       minimo:pacote[0]*mult,maximo:pacote[2]*mult,
       combo,fator,descCombo,descExtra,calculado,final,
       pm2:ar?final/ar:0,entrada:final*.3,restante:final*.7,
@@ -6261,7 +6281,7 @@ init();
     const host=document.getElementById('calcDetalhes');if(!host)return;
     host.querySelector('.jmCalcExtra')?.remove();
     const b=objFromForm(),c=calcFrom(b);
-    host.insertAdjacentHTML('beforeend',`<div class="jmCalcExtra"><div class="rowline"><span>Tabela utilizada</span><b>${safe(tipo(b))}</b></div>${Number(b.horas)>0?`<div class="rowline"><span>Receita bruta / hora estimada</span><b>${BRL(c.final/Number(b.horas))}/h</b></div>`:''}${editing?'<button type="button" class="btn" onclick="jmReprecificar()">Recalcular este orçamento com a tabela atual</button>':''}<p class="mini">Estimativa comercial. Confirme escopo, custos, ART, taxas e exigências específicas antes de enviar.</p></div>`);
+    host.insertAdjacentHTML('beforeend',`<div class="jmCalcExtra"><div class="rowline"><span>Tabela utilizada</span><b>${safe(tipo(b))}</b></div>${Number(c.economiaPacote)>0?`<div class="rowline jmDiscountSavings"><span>Economia por contratar o pacote</span><b>${BRL(c.economiaPacote)} (${(c.descCombo*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%)</b></div>`:''}${Number(b.horas)>0?`<div class="rowline"><span>Receita bruta / hora estimada</span><b>${BRL(c.final/Number(b.horas))}/h</b></div>`:''}${editing?'<button type="button" class="btn" onclick="jmReprecificar()">Recalcular este orçamento com a tabela atual</button>':''}<p class="mini">Estimativa comercial. Confirme escopo, custos, ART, taxas e exigências específicas antes de enviar.</p></div>`);
     const summary=document.getElementById('calcResumo');if(summary)summary.textContent=`${tipo(b)} • ${c.ps.join(', ')} • ${BRL(c.pm2)}/m² • ${c.combo}`;
   };
   // Salva o orçamento já com seu preço calculado, de modo que futuras tabelas não alterem o contrato.
@@ -6316,14 +6336,20 @@ init();
   function editableTable(t, values){
     return `<div class="jmBaseTableWrap"><table class="jmBaseTable"><thead><tr><th>Projeto</th><th>Mínimo R$/m²</th><th>Sugerido R$/m²</th><th>Máximo R$/m²</th></tr></thead><tbody>${Object.entries(values).map(([k,a])=>`<tr><td><b>${safe(k)}</b></td>${a.map((v,i)=>numericInput(t,k,i,v)).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
+  const DISCOUNT_LABELS={dois:'2 projetos • combinações gerais',eleHidro:'2 projetos • elétrico + hidrossanitário',arqEstr:'2 projetos • arquitetônico + estrutural',tres:'3 projetos • qualquer combinação'};
+  const renderDiscountTable=(category)=>{
+    const key=category==='Galpão'?'comboGalpao':'comboResidencial';
+    return `<div class="jmDiscountModule"><h4>Descontos progressivos • ${safe(category)}</h4><div class="jmBaseTableWrap"><table><thead><tr><th>Combinação</th><th>Desconto (%)</th></tr></thead><tbody>${Object.entries(BASE[key]).map(([k,v])=>`<tr><td>${safe(DISCOUNT_LABELS[k]||k)}</td><td><input data-jm-discount="${key}|${safe(k)}" type="number" min="0" max="95" step="0.5" value="${v}" ${baseEditing?'':'disabled'}></td></tr>`).join('')}</tbody></table></div><p class="mini">4 projetos: o desconto maior é calculado automaticamente pela linha “Combo Completo” da tabela acima, sem desconto duplicado.</p></div>`;
+  };
   const renderFactorTable=(g,title)=>`<h4>${title}</h4><div class="jmBaseTableWrap"><table><tbody>${Object.entries(BASE[g]).map(([k,v])=>`<tr><td>${safe(k)}</td><td><input data-jm-factor="${g}|${safe(k)}" type="number" min="0" max="5" step="0.01" value="${v}" ${baseEditing?'':'disabled'}></td></tr>`).join('')}</tbody></table></div>`;
   window.renderBase=function(){
     const host=document.getElementById('baseTables');if(!host)return;
     host.innerHTML=`<div class="jmBaseHeader"><div><h3>Base de preços • JM Neto</h3><p class="muted">Duas tabelas independentes, com valores em R$/m². Cada orçamento salvo mantém seu preço.</p></div><div class="btns">${baseEditing?'<button class="btn green" onclick="jmSaveBase()">Salvar alterações</button><button class="btn" onclick="jmLockBase()">Cancelar edição</button>':'<button class="btn primary" onclick="jmEnableBase()">Editar base</button>'}<button class="btn" onclick="jmExportBackup()">Exportar backup</button><button class="btn" onclick="jmImportBackupStart()">Importar backup</button><input type="file" id="jmBackupFile" accept=".json,application/json" style="display:none" onchange="jmImportBackup(event)"></div></div>
     <div class="jmBaseTools"><label class="field"><span>Categoria</span><select id="jmBaseType" onchange="jmSetBaseView(this.value)"><option value="Residencial" ${baseView==='Residencial'?'selected':''}>Residencial</option><option value="Galpão" ${baseView==='Galpão'?'selected':''}>Galpão</option></select></label><span class="pill ${baseEditing?'warn':'ok'}">${baseEditing?'Editando':'Protegida contra edição acidental'}</span></div>
     ${editableTable(baseView==='Galpão'?'galpao':'precos',group(baseView))}
-    <p class="mini jmBaseNote">${baseView==='Galpão'?'Galpão simples: arquitetônico R$ 5/6/9 por m². Vãos grandes, cálculos complexos, maquinário e projetos especiais exigem orçamento específico.':'Residências convencionais: elétrico e hidrossanitário R$ 6/8/10; arquitetônico R$ 25/30/35; combo R$ 45/50/60 por m².'} O combo é aplicado igualmente ao selecionar as quatro disciplinas ou o item “Combo Completo”.</p>
-    <details class="jmBaseDetails"><summary>Ver e editar multiplicadores comerciais</summary><div class="jmBaseFactors">${renderFactorTable('padrao','Padrão')}${renderFactorTable('prazo','Prazo')}${renderFactorTable('dificuldade','Dificuldade')}${renderFactorTable('perfil','Perfil')}${renderFactorTable('tipoCliente','Tipo de cliente')}${renderFactorTable('combo','Descontos parciais')}</div></details>
+    <p class="mini jmBaseNote">${baseView==='Galpão'?'Galpão simples: arquitetônico R$ 5/6/9 por m². Vãos grandes, cálculos complexos, maquinário e projetos especiais exigem orçamento específico.':'Residências convencionais: elétrico e hidrossanitário R$ 6/8/10; arquitetônico R$ 25/30/35; combo R$ 45/50/60 por m².'} O desconto é progressivo: 2 projetos, 3 projetos e 4 no Combo Completo, sempre sem acumular dois descontos.</p>
+    <details class="jmBaseDetails" open><summary>Descontos progressivos (editáveis)</summary><div class="jmBaseFactors">${renderDiscountTable(baseView)}</div></details>
+    <details class="jmBaseDetails"><summary>Ver e editar multiplicadores comerciais</summary><div class="jmBaseFactors">${renderFactorTable('padrao','Padrão')}${renderFactorTable('prazo','Prazo')}${renderFactorTable('dificuldade','Dificuldade')}${renderFactorTable('perfil','Perfil')}${renderFactorTable('tipoCliente','Tipo de cliente')}</div></details>
     <p class="jmSaveStatus" id="jmBaseStatus" role="status">${safe(lastSaveFeedback)}</p>
     <p class="mini">O backup JSON inclui orçamentos, tarefas, preços e registros do sistema. Guarde-o em local seguro. O salvamento na nuvem exige o Supabase configurado e uma sessão conectada.</p>`;
     host.querySelectorAll('input').forEach(el=>el.addEventListener('input',()=>{baseDirty=true;const st=document.getElementById('jmBaseStatus');if(st)st.textContent='Alterações pendentes — clique em Salvar alterações.';}));
@@ -6331,9 +6357,10 @@ init();
   window.jmSaveBase=async function(){
     if(!baseEditing)return;
     const changes=[];
-    for(const inp of document.querySelectorAll('[data-jm-price],[data-jm-factor]')){
+    for(const inp of document.querySelectorAll('[data-jm-price],[data-jm-factor],[data-jm-discount]')){
       const n=Number(inp.value);
       if(inp.value.trim()===''||!Number.isFinite(n)||n<0){toastMsg('Todos os valores devem ser números maiores ou iguais a zero.');inp.focus();return;}
+      if(inp.dataset.jmDiscount && n>95){toastMsg('O desconto não pode ultrapassar 95%.');inp.focus();return;}
       changes.push({inp,n});
     }
     for(const p of ['precos','galpao']){
@@ -6345,9 +6372,32 @@ init();
         if(!(a[0]<=a[1]&&a[1]<=a[2])){toastMsg(`Confira os valores de ${k}: mínimo ≤ sugerido ≤ máximo.`);return;}
       }
     }
+    // Não permite descontos invertidos (3 projetos < 2 projetos) nem combo completo mais caro.
+    const pendingRules={
+      comboResidencial:{...BASE.comboResidencial},comboGalpao:{...BASE.comboGalpao}
+    };
+    changes.filter(x=>x.inp.dataset.jmDiscount).forEach(({inp,n})=>{
+      const [g,k]=inp.dataset.jmDiscount.split('|');pendingRules[g][k]=n;
+    });
+    for(const [category,rules] of Object.entries(pendingRules)){
+      if(rules.tres<=Math.max(rules.dois,rules.eleHidro,rules.arqEstr)){
+        toastMsg('Para '+(category==='comboGalpao'?'galpão':'residência')+', o desconto de 3 projetos deve ser maior que o de qualquer dupla.');return;
+      }
+      const prices=deep(BASE[category==='comboGalpao'?'galpao':'precos']);
+      changes.filter(x=>x.inp.dataset.jmPrice?.startsWith((category==='comboGalpao'?'galpao':'precos')+'|')).forEach(({inp,n})=>{
+        const [g,k,i]=inp.dataset.jmPrice.split('|');prices[k][Number(i)]=n;
+      });
+      for(let i=0;i<3;i++){
+        const sum=DISCIPLINAS.reduce((v,k)=>v+prices[k][i],0);
+        if(prices['Combo Completo'][i]>=sum*(1-rules.tres/100)){
+          toastMsg('O Combo Completo deve ser mais vantajoso que o pacote de 3 serviços nos níveis mínimo, sugerido e máximo.');return;
+        }
+      }
+    }
     changes.forEach(({inp,n})=>{
       if(inp.dataset.jmPrice){const [g,k,i]=inp.dataset.jmPrice.split('|');BASE[g][k][Number(i)]=n;}
       if(inp.dataset.jmFactor){const [g,k]=inp.dataset.jmFactor.split('|');BASE[g][k]=n;}
+      if(inp.dataset.jmDiscount){const [g,k]=inp.dataset.jmDiscount.split('|');BASE[g][k]=n;}
     });
     persistBaseIntoState();
     if(!saveLocal())return;
@@ -6416,5 +6466,108 @@ init();
   window.JM_PRECOS_READY=true;
 })();
 
+</script>
+<style id="jm-proposal-v2-style">
+.jmDiscountModule{grid-column:1/-1;width:100%}.jmDiscountModule .jmBaseTableWrap{width:100%}.jmDiscountModule h4{margin:4px 0 12px}
+.jmProposalFields{border:1px solid var(--line);border-radius:15px;padding:13px;gap:12px;margin-top:6px;background:rgba(255,255,255,.035)}
+.jmProposalFields h4{margin:2px 0 3px;font-size:14px}.jmProposalFields .jmProposalGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.jmProposalFields textarea{min-height:62px;resize:vertical}.jmProposalFields .mini{line-height:1.5}
+.jmProposalDetails{margin-top:15px;border:1px solid #e4e6eb;border-radius:12px;padding:12px 14px;background:#fbfcfe;color:#263041}
+.jmProposalDetails h3{font-size:13px;margin:2px 0 10px!important;color:#172033}
+.jmProposalTerms{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.jmProposalTerms section{min-width:0}.jmProposalTerms b{font-size:11px;color:#111827;display:block;margin-bottom:3px}
+.jmProposalTerms p{white-space:pre-line;font-size:10.5px;line-height:1.55;color:#334155;margin:0;overflow-wrap:anywhere}
+.jmProposalSmall{font-size:10px;color:#64748b;margin-top:10px;line-height:1.4}
+.jmProposalDiscountLine strong{color:#166534!important}
+@media(max-width:680px){.jmProposalFields .jmProposalGrid,.jmProposalTerms{grid-template-columns:1fr}}
+@media print{.jmProposalFields{display:none!important}.jmProposalDetails{break-inside:avoid;page-break-inside:avoid;padding:8px 10px!important;margin:9px 0!important}.jmProposalTerms{gap:8px}.jmProposalTerms p{font-size:9px!important}.jmProposalDetails h3{font-size:11px!important}}
+</style>
+<script id="jm-proposta-comercial-v2">
+(function(){
+  'use strict';
+  const $=id=>document.getElementById(id);
+  const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const dateIso=d=>String(d||'').slice(0,10);
+  const br=s=>{const x=dateIso(s).split('-');return x.length===3?`${x[2]}/${x[1]}/${x[0]}`:'A combinar';};
+  const currency=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const fields=['proposalIncludes','proposalExcludes','proposalRevisions','proposalValidity','proposalStart'];
+  function ensureFields(){
+    if($('jmProposalFields')) return;
+    const obs=$('obs')?.closest('.field');if(!obs)return;
+    const wrap=document.createElement('div');wrap.id='jmProposalFields';wrap.className='field full jmProposalFields';
+    wrap.innerHTML=`<h4>Detalhes da proposta comercial</h4><p class="mini">Preencha apenas o que realmente faz parte do serviço. Estes campos aparecem na proposta, não alteram o contrato.</p>
+      <div class="jmProposalGrid">
+        <div class="field"><label for="proposalIncludes">O que está incluso</label><textarea id="proposalIncludes" placeholder="Ex.: plantas e detalhamentos técnicos, arquivos PDF, protocolo municipal..."></textarea></div>
+        <div class="field"><label for="proposalExcludes">O que não está incluso</label><textarea id="proposalExcludes" placeholder="Ex.: taxas públicas, execução da obra, levantamento topográfico..."></textarea></div>
+        <div class="field"><label for="proposalRevisions">Revisões incluídas</label><input id="proposalRevisions" placeholder="Ex.: até 2 ajustes sem mudança de escopo"></div>
+        <div class="field"><label for="proposalStart">Início e condição de prazo</label><input id="proposalStart" placeholder="Ex.: após aceite e documentação completa"></div>
+        <div class="field"><label for="proposalValidity">Validade da proposta (dias)</label><input id="proposalValidity" type="number" min="1" max="365" step="1" value="7"></div>
+      </div>`;
+    obs.insertAdjacentElement('afterend',wrap);
+  }
+  function readFields(b){
+    if(!b)return b;
+    fields.forEach(k=>{if($(k))b[k]=String($(k).value||'').trim();});
+    b.proposalValidity=Math.max(1,Math.min(365,Number(b.proposalValidity)||7));
+    return b;
+  }
+  function writeFields(b){
+    ensureFields();fields.forEach(k=>{if($(k))$(k).value=String(b?.[k]??(k==='proposalValidity'?7:''));});
+  }
+  const oldObj=window.objFromForm;
+  window.objFromForm=function(){return readFields(oldObj.apply(this,arguments));};
+  const oldReset=window.resetForm;
+  window.resetForm=function(){const r=oldReset?.apply(this,arguments);writeFields({});return r;};
+  const oldEdit=window.editBudget;
+  window.editBudget=function(id){const r=oldEdit?.apply(this,arguments);writeFields(state.budgets.find(x=>x.id===id));return r;};
+  const oldProposal=window.proposalTemp;
+  window.proposalTemp=function(b){
+    const r=oldProposal?.apply(this,arguments);
+    const expected=b;
+    setTimeout(()=>{
+      const host=$('proposalPrint');if(!host||window.__currentProposalBudget!==expected)return;
+      const body=host.querySelector('.proposalPremiumBody');if(!body)return;
+      body.querySelector('.jmProposalDetails')?.remove();
+      body.querySelector('.jmProposalDiscountLine')?.remove();
+      const c=calcFrom(b);const data=dateIso(b.proposalCreatedAt||b.created||new Date().toISOString());
+      const days=Math.max(1,Math.min(365,Number(b.proposalValidity)||7));
+      const start=new Date(data+'T12:00:00');
+      if(Number.isFinite(start.getTime())){
+        const expires=new Date(start);expires.setDate(expires.getDate()+days);
+        const validity=body.querySelectorAll('.proposalSummaryBox div');
+        validity.forEach(el=>{if(/Validade/i.test(el.querySelector('small')?.textContent||'')){
+          const v=el.querySelector('b');if(v)v.textContent=`${days} dias — até ${br(expires.toISOString())}`;
+        }});
+      }
+      // Apresenta o desconto progressivo separadamente dos descontos negociados.
+      if(c.descCombo>0 && Number(c.economiaPacote)>0){
+        const marker=[...body.querySelectorAll('.proposalServiceItem')].find(el=>/Composição do investimento/i.test(el.textContent));
+        if(marker){
+          const row=document.createElement('div');row.className='proposalServiceItem jmProposalDiscountLine';
+          row.innerHTML=`<div><b>Vantagem do pacote de projetos</b><br><span class="mini">${safe(c.combo)} • desconto de ${(c.descCombo*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}% sobre os serviços avulsos.</span></div><strong>Economia de ${currency(c.economiaPacote)}</strong>`;
+          marker.insertAdjacentElement('afterend',row);
+        }
+      }
+      const includes=String(b.proposalIncludes||'').trim();
+      const excludes=String(b.proposalExcludes||'').trim();
+      const revis=String(b.proposalRevisions||'').trim();
+      const inicio=String(b.proposalStart||'').trim();
+      const panel=document.createElement('div');panel.className='jmProposalDetails';
+      panel.innerHTML=`<h3>Condições específicas da proposta</h3><div class="jmProposalTerms">
+        <section><b>Incluso no valor</b><p>${safe(includes||'Somente os projetos e entregáveis expressamente indicados no escopo acima.')}</p></section>
+        <section><b>Serviços não incluídos</b><p>${safe(excludes||'Não especificados. Confirmar exclusões antes da contratação.')}</p></section>
+        <section><b>Revisões</b><p>${safe(revis||'Quantidade e critérios a confirmar no aceite.')}</p></section>
+        <section><b>Condição de início</b><p>${safe(inicio||'A combinar com o contratante.')}</p></section>
+        </div><div class="jmProposalSmall">Serviços, alterações e exigências que extrapolem o escopo descrito deverão ser combinados em proposta complementar.</div>`;
+      const signatures=body.querySelector('.proposalSignaturePremium');
+      if(signatures)signatures.insertAdjacentElement('beforebegin',panel);
+      else body.appendChild(panel);
+    },170);
+    return r;
+  };
+  ensureFields();
+  // O orçamento continua com seus dados mesmo após ir a outra tela.
+  window.JM_PROPOSTA_V2_READY=true;
+})();
 </script>
 </body></html>
