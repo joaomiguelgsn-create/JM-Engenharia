@@ -1283,11 +1283,51 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
 @media(max-width:680px){.jmBaseFactors{grid-template-columns:1fr}.jmBaseTableWrap th,.jmBaseTableWrap td{padding:9px 6px}}
 
 </style>
+
+<style id="jm-acessos-css">
+.jm-access-layout{display:grid;grid-template-columns:minmax(240px,2fr) minmax(230px,1fr);gap:14px}
+#jm-access-select{display:block;width:100%;min-height:45px;background:#0f1b2e;border:1px solid #365373;color:#f8fafc;border-radius:12px;padding:9px 12px;font:inherit}
+#jm-acessos-clientes .field label{display:block;margin-bottom:7px}
+.jm-access-status{border:1px solid #375373;background:rgba(255,255,255,.035);min-height:45px;padding:12px;border-radius:12px;line-height:1.4}
+.jm-access-reveal{border:1px solid #bfa052;background:rgba(244,199,107,.1);padding:14px;border-radius:14px;margin-top:15px}
+.jm-access-reveal[hidden]{display:none!important}
+.jm-access-reveal small{color:#f0d6a4;line-height:1.5;display:block;margin-bottom:9px}
+.jm-access-code-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.jm-access-code-row code{font-size:18px;letter-spacing:.07em;font-weight:800;overflow-wrap:anywhere;color:#fff}
+.jm-access-project{border:1px solid #365373;padding:12px;border-radius:13px;margin:10px 0;background:rgba(255,255,255,.035)}
+.jm-access-project strong{display:block;margin-bottom:6px}
+.jm-access-project .mini{margin:3px 0 8px}
+.jm-access-edit{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.jm-access-edit input{flex:1;min-width:190px;min-height:42px;border:1px solid #365373;background:#08172a;color:#fff;border-radius:9px;padding:8px 10px}
+@media(max-width:760px){.jm-access-layout{grid-template-columns:1fr}.jm-access-code-row code{font-size:15px}}
+</style>
 </head><body>
 <div class="app"><aside class="side"><div class="brand"><div class="logo" title="JM Neto Engenharia"><span>JM</span></div><div><h1>JM Neto Engenharia</h1><p>Projetos técnicos e gestão de propostas</p><span class="brandWordmark">Projetos & Consultoria</span></div></div><nav id="nav" class="nav"></nav></aside><main class="main"><div class="top"><div><h2 id="pageTitle">Painel</h2><p id="pageSub">Visão geral da operação.</p></div><span class="badge" id="cloudBadge">Nuvem configurável</span></div>
 <section id="painel" class="section active"><div class="hero"><div class="card"><span class="pill ok">Online</span><h3 class="commandTitle">JM Neto Engenharia: propostas, projetos, tarefas e financeiro em um só lugar.</h3><p class="muted">Sistema comercial para transformar orçamento em proposta profissional e acompanhar a execução com clareza.</p><div class="btns"><button class="btn primary" onclick="go('orcamento')">Criar orçamento</button><button class="btn" onclick="go('clientes')">Ver orçamentos</button></div></div><div class="card" id="resumoPanel"></div></div><div class="grid cols4" id="kpis"></div><div class="dashGrid"><div class="card"><h3>Funil comercial</h3><div id="funil"></div></div><div class="card"><h3>Projetos em andamento</h3><div id="homeProjects"></div></div></div></section>
 <section id="orcamento" class="section"><div class="grid cols2"><div class="card"><h3 id="formTitle">Novo orçamento</h3><div class="form"><div class="field span2"><label>Cliente</label><input id="cliente" list="clientList" placeholder="Nome do cliente"><datalist id="clientList"></datalist></div><div class="field"><label>Telefone</label><input id="telefone" list="phoneList" placeholder="(62)99123-0146"><datalist id="phoneList"></datalist></div><div class="field"><label>Cidade</label><input id="cidade" placeholder="Cidade"></div><div class="field full"><label>Endereço da obra</label><input id="endereco" placeholder="Rua, bairro, lote, quadra..."></div><div class="field"><label>Tipo de cliente</label><select id="tipoCliente"></select></div><div class="field"><label>Padrão</label><select id="padrao"></select></div><div class="field"><label>Área (m²)</label><input id="area" type="number" min="0" value="120"></div><div class="field"><label>Prazo comercial</label><select id="prazo"></select></div><div class="field"><label>Dificuldade</label><select id="dificuldade"></select></div><div class="field"><label>Perfil</label><select id="perfil"></select></div><div class="field"><label>Chance</label><select id="chance"></select></div><div class="field"><label>Desconto extra (%)</label><input id="desconto" type="number" min="0" max="100" value="0"></div><div class="field"><label>Horas estimadas</label><input id="horas" type="number" value="20"></div><div class="field"><label>Custo estimado (R$)</label><input id="custo" type="number" value="0"></div><div class="field"><label>Valor negociado (opcional)</label><input id="negociado" type="number" value="0"></div><div class="field"><label>Previsão de entrega</label><input id="entrega" type="date"></div><div class="field"><label>Vencimento do pagamento</label><input id="paymentDue" type="date"></div><div class="field full"><label>Projetos incluídos</label><div class="checks" id="projChecks"></div></div><div class="field full"><label>Observações / escopo</label><textarea id="obs" placeholder="Texto opcional que aparece na proposta"></textarea></div></div><div class="btns" style="margin-top:16px"><button class="btn primary" onclick="saveBudget()">Salvar orçamento</button><button class="btn" onclick="previewProposal()">Prévia da proposta</button><button class="btn ghost" onclick="resetForm()">Limpar</button></div></div><div class="card"><h3>Resumo do preço</h3><div class="price" id="calcValor">R$ 0</div><p class="muted" id="calcResumo"></p><div id="calcDetalhes"></div></div></div></section>
-<section id="clientes" class="section"><div class="card"><h3>Clientes e orçamentos</h3><table><thead><tr><th>Cliente</th><th>Projetos</th><th>Área</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead><tbody id="budgetRows"></tbody></table></div></section>
+<section class="section" id="clientes">
+
+<div class="card" id="jm-acessos-clientes" style="margin-bottom:18px">
+  <h3 style="margin:0 0 8px">🔐 Acesso do cliente ao site</h3>
+  <p class="muted" style="margin-bottom:14px">Selecione um cliente já cadastrado no orçamento. Gere o código individual e envie pelo WhatsApp. O cliente entra com CPF + código; os projetos fechados vinculados a esse CPF aparecem automaticamente.</p>
+  <div class="jm-access-layout">
+    <div class="field"><label for="jm-access-select">Cliente cadastrado (CPF)</label>
+       <select id="jm-access-select"><option value="">Selecione um cliente…</option></select></div>
+    <div class="field"><label>Situação do portal</label><div id="jm-access-status" class="jm-access-status">Escolha um cliente.</div></div>
+  </div>
+  <div class="btns" style="margin-top:12px">
+     <button class="btn primary" id="jm-access-generate" type="button" disabled>Gerar / redefinir código</button>
+     <button class="btn red" id="jm-access-revoke" type="button" disabled>Revogar acesso</button>
+  </div>
+  <div id="jm-access-reveal" class="jm-access-reveal" hidden>
+    <small>Este código aparece apenas agora. Copie e envie ao cliente em particular.</small>
+    <div class="jm-access-code-row"><code id="jm-access-code"></code><button class="btn primary" type="button" id="jm-access-copy">Copiar código</button></div>
+    <p class="mini">O código anterior e as sessões antigas foram invalidados automaticamente.</p>
+  </div>
+  <p class="mini" id="jm-access-feedback" role="status" aria-live="polite"></p>
+  <div id="jm-access-projects"></div>
+</div>
+<div class="card"><h3>Clientes e orçamentos</h3><table><thead><tr><th>Cliente</th><th>Projetos</th><th>Área</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead><tbody id="budgetRows"></tbody></table></div></section>
 <section id="projetos" class="section"><div class="grid cols3" id="projectRows"></div></section>
 <section id="tarefas" class="section"><div class="taskBoard"><div class="card"><h3>Projetos fechados</h3><div id="taskProjects"></div></div><div class="card"><div class="btns" style="justify-content:space-between"><div><h3 id="taskTitle">Tarefas</h3><p class="muted" id="taskSub"></p></div><button class="btn primary" onclick="openTaskModal()">Nova tarefa</button></div><div class="filterBar" id="typeFilters"></div><div id="typeProgress"></div><div id="tasksList" style="margin-top:14px"></div></div></div></section>
 <section id="financeiro" class="section"><div class="card"><h3>Controle financeiro</h3><div id="financeRows"></div></div></section>
@@ -5586,7 +5626,7 @@ init();
     const dueWrap=due.closest('.field'); if(dueWrap) dueWrap.style.display='none';
     const panel=document.createElement('div');
     panel.id='jmPayPanel'; panel.className='field full';
-    panel.innerHTML=`<div class="jmPayBox"><label>Condição de pagamento</label><select id="jmPayCondition"><option value="">Selecione a condição de pagamento</option><option value="avista">À vista</option><option value="entrada_parcelas">Entrada + parcelas</option><option value="cinquenta">50% entrada + 50% na entrega</option><option value="etapas">Por etapas (marcos editáveis)</option><option value="personalizado">Personalizado</option></select><div id="jmPayDynamic"></div><div id="jmPayTotal" class="mini" style="margin-top:8px"></div></div>`;
+    panel.innerHTML=`<div class="jmPayBox"><label>Condição de pagamento</label><select id="jmPayCondition"><option value="">Selecione a condição de pagamento</option><option value="avista">À vista</option><option value="entrada_parcelas">Entrada + parcelas</option><option value="cinquenta">50% entrada + 50% na entrega</option><option value="etapas">Por etapas</option><option value="personalizado">Personalizado</option></select><div id="jmPayDynamic"></div><div id="jmPayTotal" class="mini" style="margin-top:8px"></div></div>`;
     dueWrap ? dueWrap.insertAdjacentElement('afterend',panel) : document.querySelector('#orcamento .form')?.appendChild(panel);
     $('jmPayCondition').addEventListener('change', ()=>{ renderDynamic(); syncDue(); });
     renderDynamic();
@@ -5599,7 +5639,7 @@ init();
     if(cond==='avista') d.innerHTML=`<div class="jmPayGrid">${field('Data de pagamento','jmPaySingleDate','date')}</div>`;
     if(cond==='entrada_parcelas') d.innerHTML=`<div class="jmPayGrid">${field('Entrada (%)','jmPayEntryPct','number','Ex: 50')}${field('Data da entrada','jmPayEntryDate','date')}${field('Quantidade de parcelas','jmPayParcelCount','number','Ex: 2')}<div class="field" id="jmFirstDateWrap"><label>Data da 1ª parcela</label><input id="jmPayFirstDate" type="date"></div></div><div class="jmPayRows" id="jmPayRows"></div>`;
     if(cond==='cinquenta') d.innerHTML=`<div class="jmPayGrid">${field('Data da entrada','jmPayEntryDate','date')}${field('Data do pagamento final','jmPayFinalDate','date')}</div>`;
-    if(cond==='etapas') d.innerHTML=`<div class="jmPayGrid">${field('Quantidade de etapas','jmPayParcelCount','number','Ex: 3')}<div class="field" id="jmFirstDateWrap"><label>Data da 1ª etapa</label><input id="jmPayFirstDate" type="date"></div></div><p class="mini">Defina quantas etapas quiser e edite cada descrição. Ex.: Entrada, protocolo efetivo na prefeitura e alvará ou entrega final. Os marcos definidos aqui aparecerão na proposta e no contrato.</p><div class="jmPayRows" id="jmPayRows"></div>`;
+    if(cond==='etapas') d.innerHTML=`<div class="jmPayGrid">${field('Quantidade de etapas','jmPayParcelCount','number','Ex: 3')}<div class="field" id="jmFirstDateWrap"><label>Data da 1ª etapa</label><input id="jmPayFirstDate" type="date"></div></div><div class="jmPayRows" id="jmPayRows"></div>`;
     if(cond==='personalizado') d.innerHTML=`<div class="jmPayGrid"><div class="field full"><label>Condição personalizada</label><textarea id="jmPayCustom" placeholder="Ex: R$ 1.000,00 de entrada em 31/05/2026 + 2 parcelas..."></textarea></div></div>`;
     bindDynamic(); recalcPlan();
   }
@@ -5610,7 +5650,7 @@ init();
     if((cond==='entrada_parcelas'||cond==='etapas') && rows){
       const count=Math.max(0,Math.floor(num('jmPayParcelCount',0))); if(firstWrap) firstWrap.style.display=count>0?'':'none';
       let html='';
-      for(let i=1;i<=count;i++){ const label=cond==='etapas' && count===3 ? ['Entrada — na contratação','Protocolo dos projetos na prefeitura','Alvará ou entrega final dos projetos'][i-1] : (cond==='etapas'?`Etapa ${i}`:`Parcela ${i}`); const date=addMonths(val('jmPayFirstDate'),i-1); html += `<div class="jmPayRow"><input class="jmPayLabel" value="${label}"><input class="jmPayDate" type="date" value="${date}"><input class="jmPayValue" type="number" step="0.01"></div>`; }
+      for(let i=1;i<=count;i++){ const label=cond==='etapas'?`Etapa ${i}`:`Parcela ${i}`; const date=addMonths(val('jmPayFirstDate'),i-1); html += `<div class="jmPayRow"><input class="jmPayLabel" value="${label}"><input class="jmPayDate" type="date" value="${date}"><input class="jmPayValue" type="number" step="0.01"></div>`; }
       rows.innerHTML=html;
       const entryPct = cond==='entrada_parcelas' ? Math.max(0,Math.min(100,num('jmPayEntryPct',0))) : 0;
       const remaining = total * (1-entryPct/100);
@@ -5715,13 +5755,13 @@ init();
   function enrichBudget(b){
     if(!b) return b;
     const total = (typeof calcFrom==='function') ? Number(calcFrom(b).final||0) : n(b.final||b.valor||0);
-    const cond=$('jmPayCondition') ? val('jmPayCondition') : (b.paymentCondition || '');
+    const cond=val('jmPayCondition') || b.paymentCondition || '';
     b.paymentCondition=cond;
     if(cond==='personalizado') b.paymentCustom=val('jmPayCustom') || b.paymentCustom || '';
     const uiPlan = $('jmPayCondition') ? getPlanFromUI(total) : [];
-    b.paymentPlan = $('jmPayCondition') ? uiPlan : (Array.isArray(b.paymentPlan)?b.paymentPlan:[]);
+    b.paymentPlan = uiPlan.length ? uiPlan : (Array.isArray(b.paymentPlan)?b.paymentPlan:[]);
     b.paymentDue = (b.paymentPlan.find(p=>p.date)||{}).date || b.paymentDue || '';
-    b.paymentMethod = cond ? planText(b) : 'A combinar'; // condição definida no orçamento, sem fabricar parcelas
+    b.paymentMethod = planText(b); // compatibilidade com proposta, contrato, financeiro e demais abas antigas
     return b;
   }
 
@@ -5779,14 +5819,14 @@ init();
 
   const oldOpenProposal=window.openProposal;
   window.openProposal=function(id){
-    const b=window.state?.budgets?.find(x=>x.id===id); // Não regravar condições de pagamento existentes a partir do formulário aberto.
+    const b=window.state?.budgets?.find(x=>x.id===id); if(b) enrichBudget(b);
     if(oldOpenProposal) oldOpenProposal.apply(this,arguments);
     setTimeout(()=>ensureDocPayment(document.getElementById('proposalPrint'),b),80);
   };
 
   const oldOpenContract=window.openContract;
   window.openContract=function(id){
-    const b=window.state?.budgets?.find(x=>x.id===id); // Abrir contrato não pode alterar as parcelas salvas no orçamento.
+    const b=window.state?.budgets?.find(x=>x.id===id); if(b) enrichBudget(b);
     if(oldOpenContract) oldOpenContract.apply(this,arguments);
     setTimeout(()=>ensureDocPayment(document.getElementById('contractPrint')||document.getElementById('contractContent'),b),80);
   };
@@ -6949,42 +6989,40 @@ window.JM_DOCUMENTOS_V3_READY=true;
   }
   function isCustomPayment(b){return text(b.paymentCondition)==='personalizado'||!!text(b.paymentCustom);}
   function hasLegacyPayment(b){const method=text(b.paymentMethod);return !text(b.paymentCondition) && !!method && !/^(?:(?:condiç[aã]o de pagamento )?a combinar\.?|conforme combinado(?: entre as partes)?\.?|n[aã]o informado)$/i.test(method);}
-  // Jamais inventar um parcelamento quando não há cronograma definido.
-  // O que foi salvo no orçamento tem prioridade, independentemente de quantidade ou marcos.
   function paymentItems(b,total){
     const plan=Array.isArray(b.paymentPlan)?b.paymentPlan:[];
-    if(plan.length)return plan.map((p,i)=>({
-      label:(text(p.label)||`Parcela ${i+1}`).replace(/^2ª parcela\s*[—-]\s*entrega dos projetos para protocolo na prefeitura$/i,'2ª parcela — protocolo dos projetos na prefeitura'),
-      date:text(p.date),value:num(p.value)
-    }));
-    const cond=text(b.paymentCondition);
+    if(plan.length)return plan.map(p=>({label:text(p.label)||'Parcela',date:text(p.date),value:num(p.value)}));
     const finalTotal=num(total);
-    // Somente condições escolhidas expressamente podem dispensar plano detalhado.
-    if(finalTotal>0 && cond==='avista')return [{label:'Pagamento à vista',date:'',value:finalTotal}];
-    if(finalTotal>0 && cond==='cinquenta'){
+    if(finalTotal<=0 || isCustomPayment(b) || hasLegacyPayment(b))return [];
+    const cond=text(b.paymentCondition);
+    if(cond==='avista')return [{label:'Pagamento à vista',date:'',value:finalTotal}];
+    if(cond==='cinquenta'){
       const entry=Math.round(finalTotal*50)/100;
-      return [{label:'Entrada — 50%',date:'',value:entry},{label:'Entrega final — 50%',date:'',value:Math.round((finalTotal-entry)*100)/100}];
+      return [{label:'1ª parcela — entrada (50%)',date:'',value:entry},{label:'2ª parcela — entrega final (50%)',date:'',value:Math.round((finalTotal-entry)*100)/100}];
     }
-    return [];
+    const p1 = Math.round((finalTotal/3)*100)/100;
+    const p2 = p1;
+    const p3 = Math.round((finalTotal - p1 - p2)*100)/100;
+    const approval=approvalPaymentSelected(b);
+    return [
+      {label:'1ª parcela — entrada, na contratação',date:'',value:p1},
+      {label:approval?'2ª parcela — entrega dos projetos para protocolo na prefeitura':'2ª parcela — apresentação dos projetos para conferência',date:'',value:p2},
+      {label:approval?'3ª parcela — emissão do alvará':'3ª parcela — entrega final dos projetos',date:'',value:p3}
+    ];
   }
   function paymentSummary(b){
-    const custom=text(b.paymentCustom);
-    if(custom)return custom;
+    if(text(b.paymentCustom))return text(b.paymentCustom);
     if(hasLegacyPayment(b))return text(b.paymentMethod);
-    const cond=text(b.paymentCondition);
-    if(cond==='personalizado')return 'Condição personalizada ainda não preenchida no orçamento.';
-    if(cond==='etapas'||cond==='entrada_parcelas')return 'Etapas e valores ainda não definidos no orçamento.';
-    return 'Condição de pagamento a definir no orçamento.';
+    if(text(b.paymentCondition)==='personalizado')return 'Condição personalizada a definir antes da assinatura.';
+    if(typeof window.paymentText==='function')try{return text(window.paymentText(b))||'A combinar';}catch(e){}
+    return text(b.paymentMethod)||'A combinar';
   }
   function paymentHtml(b,total){
-    // Condição textual personalizada tem precedência sobre eventuais dados antigos.
-    if(text(b.paymentCondition)==='personalizado')return `<p>${lines(paymentSummary(b))}</p>`;
     const items=paymentItems(b,total);
     if(!items.length)return `<p>${lines(paymentSummary(b))}</p>`;
-    return `<table class="jm5Pricing"><thead><tr><th>Etapa de pagamento</th><th>Data</th><th>Valor</th></tr></thead><tbody>${items.map(p=>`<tr><td>${esc(p.label)}</td><td>${p.date?datePT(p.date):'Conforme marco contratado'}</td><td>${brl(p.value)}</td></tr>`).join('')}</tbody></table>`;
+    return `<table class="jm5Pricing"><thead><tr><th>Etapa</th><th>Data</th><th>Valor</th></tr></thead><tbody>${items.map(p=>`<tr><td>${esc(p.label)}</td><td>${p.date?datePT(p.date):'A combinar'}</td><td>${brl(p.value)}</td></tr>`).join('')}</tbody></table>`;
   }
   function moneyCheck(b,c){
-    if(text(b.paymentCondition)==='personalizado')return '';
     const items=paymentItems(b,num(c.final));
     if(!items.length)return '';
     const total=items.reduce((a,p)=>a+p.value,0);
@@ -7165,4 +7203,141 @@ window.JM_DOCUMENTOS_V3_READY=true;
 
 }
 </style>
+<script id="jm-final-milestone-field">
+(function(){
+ 'use strict';
+ const id='proposalPaymentFinal';
+ function ensure(){
+  if(document.getElementById(id))return;
+  const parent=document.getElementById('jmProposalFields');
+  if(!parent)return;
+  const grid=parent.querySelector('.jmProposalGrid')||parent;
+  const div=document.createElement('div');div.className='field';
+  div.innerHTML='<label for="proposalPaymentFinal">3ª parcela (se usar o padrão de 3 parcelas)</label><select id="proposalPaymentFinal"><option value="entrega">Entrega final dos projetos</option><option value="alvara">Emissão do alvará (quando a aprovação for contratada)</option></select><span class="mini">Quando preencher parcelas personalizadas, elas prevalecem sobre esta sugestão.</span>';
+  grid.appendChild(div);
+ }
+ function read(b){ensure();const el=document.getElementById(id);if(el)b[id]=el.value||'entrega';return b;}
+ function write(b){ensure();const el=document.getElementById(id);if(el)el.value=b?.[id]==='alvara'?'alvara':'entrega';}
+ const oldObj=window.objFromForm;
+ if(typeof oldObj==='function')window.objFromForm=function(){return read(oldObj.apply(this,arguments));};
+ const oldEdit=window.editBudget;
+ if(typeof oldEdit==='function')window.editBudget=function(bid){const ret=oldEdit.apply(this,arguments);const b=window.state?.budgets?.find(x=>String(x.id)===String(bid));write(b);return ret;};
+ const oldReset=window.resetForm;
+ if(typeof oldReset==='function')window.resetForm=function(){const ret=oldReset.apply(this,arguments);write({});return ret;};
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{ensure();write({});});
+ else {ensure();write({});}
+})();
+</script>
+<script id="jm-acessos-script">
+(function(){
+  'use strict';
+  const ADMIN_ID='8451674f-2107-4b2b-a7ab-af9e18e3ad1d';
+  const $=id=>document.getElementById(id);
+  const onlyDigits=s=>String(s||'').replace(/\D/g,'');
+  const cpfView=s=>s.slice(0,3)+'.'+s.slice(3,6)+'.'+s.slice(6,9)+'-'+s.slice(9);
+  const authReady=()=>typeof sb!=='undefined'&&!!sb&&typeof cloudUser!=='undefined'&&!!cloudUser&&cloudUser.id===ADMIN_ID;
+  const appState=()=>typeof state!=='undefined'?state:(window.state||{});
+  let lastCpf=''; let activeCode=''; let activeName=''; let busy=false;
+  function feedback(t){$('jm-access-feedback').textContent=t||'';}
+  function clearCode(){activeCode='';activeName='';$('jm-access-code').textContent='';$('jm-access-reveal').hidden=true;}
+  function setButtonState(){
+    const on=!!$('jm-access-select').value&&authReady()&&!busy;
+    $('jm-access-generate').disabled=!on;
+    $('jm-access-revoke').disabled=!on;
+  }
+  function clientsInState(){
+    const m=new Map();
+    for(const b of (appState().budgets||[])){
+      const cpf=onlyDigits(b.cpfcnpj);
+      if(cpf.length!==11)continue;
+      if(!m.has(cpf))m.set(cpf,{cpf,nome:String(b.cliente||'Cliente').trim()||'Cliente',qtd:0});
+      m.get(cpf).qtd++;
+    }
+    return [...m.values()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  }
+  function rebuildSelect(){
+    const select=$('jm-access-select');
+    const old=select.value;
+    const clients=clientsInState();
+    select.replaceChildren(new Option('Selecione um cliente…',''));
+    for(const c of clients) select.add(new Option(c.nome+' — '+cpfView(c.cpf)+' ('+c.qtd+' orçamento(s))',c.cpf));
+    if(clients.some(x=>x.cpf===old)) select.value=old;
+    setButtonState();
+  }
+  async function api(method,params){
+    if(!authReady())throw Error('Entre com sua conta na aba Nuvem para gerar acessos.');
+    const {data,error}=await sb.rpc(method,params);
+    if(error)throw Error(error.message||'Erro no Supabase');
+    return data;
+  }
+  async function loadClient(){
+    const cpf=$('jm-access-select').value;
+    if(lastCpf!==cpf){lastCpf=cpf;clearCode();}
+    setButtonState();
+    $('jm-access-projects').replaceChildren();
+    if(!cpf){$('jm-access-status').textContent='Escolha um cliente.';return;}
+    if(!authReady()){$('jm-access-status').textContent='Faça login com sua conta na aba Nuvem para gerenciar os códigos.';return;}
+    $('jm-access-status').textContent='Consultando…';
+    try{
+      const [status,projs]=await Promise.all([
+        api('jm_portal_status_cliente',{p_cpf:cpf}),
+        api('jm_portal_admin_projetos',{p_cpf:cpf})
+      ]);
+      if($('jm-access-select').value!==cpf)return;
+      $('jm-access-status').textContent=!status.cadastrado?'Sem código de acesso':status.ativo?'Código ativo · '+status.projetos+' projeto(s)':'Código revogado';
+      renderProjects(Array.isArray(projs)?projs:[]);
+    }catch(e){$('jm-access-status').textContent='Não foi possível consultar: '+e.message;}
+  }
+  function renderProjects(arr){
+    const host=$('jm-access-projects');host.replaceChildren();
+    const title=document.createElement('h4');title.textContent='Projetos disponibilizados ('+arr.length+')';title.style.marginTop='18px';host.appendChild(title);
+    if(!arr.length){const p=document.createElement('p');p.className='mini';p.textContent='Não há projetos fechados vinculados a esse CPF. Cadastre o código e feche o orçamento correspondente para publicar automaticamente.';host.appendChild(p);return;}
+    for(const p of arr){
+      const box=document.createElement('div');box.className='jm-access-project';
+      const head=document.createElement('strong');head.textContent=p.titulo||'Projeto';box.appendChild(head);
+      const note=document.createElement('p');note.className='mini';note.textContent='Situação: '+(p.situacao||'Em andamento');box.appendChild(note);
+      const row=document.createElement('div');row.className='jm-access-edit';
+      const inp=document.createElement('input');inp.value=p.etapa||'';inp.maxLength=160;inp.setAttribute('aria-label','Etapa de '+(p.titulo||'projeto'));row.appendChild(inp);
+      const btn=document.createElement('button');btn.className='btn';btn.type='button';btn.textContent='Salvar etapa';row.appendChild(btn);
+      btn.addEventListener('click',async()=>{
+        if(!inp.value.trim())return feedback('Informe a etapa antes de salvar.');
+        btn.disabled=true;feedback('Atualizando etapa…');
+        try{const ok=await api('jm_portal_alterar_etapa',{p_orcamento_id:p.orcamento_id,p_etapa:inp.value.trim()});
+          feedback(ok?'Etapa atualizada.':'Projeto não encontrado.');await loadClient();
+        }catch(e){feedback('Erro: '+e.message)}finally{btn.disabled=false}
+      });
+      box.appendChild(row);host.appendChild(box);
+    }
+  }
+  $('jm-access-select').addEventListener('change',()=>{feedback('');loadClient()});
+  $('jm-access-generate').addEventListener('click',async()=>{
+    const cpf=$('jm-access-select').value;if(!cpf||!authReady()||busy)return;
+    const existing=$('jm-access-status').textContent.includes('Código ativo');
+    if(existing && !confirm('Redefinir o código do cliente? O anterior e todas as sessões abertas deixarão de funcionar.'))return;
+    busy=true;setButtonState();clearCode();feedback('Gerando código seguro…');
+    try{
+      const res=await api('jm_portal_gerar_codigo',{p_cpf:cpf});
+      activeCode=res.codigo;activeName=res.nome;$('jm-access-code').textContent=activeCode;
+      $('jm-access-reveal').hidden=false;feedback('Código gerado. Copie e envie em conversa privada para '+activeName+'.');await loadClient();
+    }catch(e){feedback('Erro ao gerar código: '+e.message)}finally{busy=false;setButtonState()}
+  });
+  $('jm-access-copy').addEventListener('click',async()=>{
+    if(!activeCode)return;
+    const msg='Olá! Seu acesso à área do cliente da JM Neto Engenharia está pronto.\nCPF: '+cpfView($('jm-access-select').value)+'\nCódigo: '+activeCode+'\nSite: https://www.jmnetoengenharia.com.br/';
+    try{await navigator.clipboard.writeText(msg);feedback('Mensagem copiada. Agora é só colar na conversa particular do cliente.');}
+    catch(e){feedback('Copie o código manualmente e envie somente em conversa privada.');}
+  });
+  $('jm-access-revoke').addEventListener('click',async()=>{
+    const cpf=$('jm-access-select').value;if(!cpf||busy||!authReady())return;
+    if(!confirm('Revogar o acesso deste cliente? As sessões serão encerradas e o código deixará de funcionar.'))return;
+    busy=true;setButtonState();clearCode();feedback('Revogando acesso…');
+    try{const ok=await api('jm_portal_revogar_codigo',{p_cpf:cpf});feedback(ok?'Acesso revogado.':'Este CPF ainda não tem código.');await loadClient();}
+    catch(e){feedback('Erro ao revogar: '+e.message)}finally{busy=false;setButtonState()}
+  });
+  const section=$('clientes');
+  if(section){new MutationObserver(()=>{if(section.classList.contains('active')){rebuildSelect();if($('jm-access-select').value)loadClient();}})
+    .observe(section,{attributes:true,attributeFilter:['class']});}
+  rebuildSelect();
+})();
+</script>
 </body></html>
