@@ -1297,8 +1297,6 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
 .jm-access-project{border:1px solid #365373;padding:12px;border-radius:13px;margin:10px 0;background:rgba(255,255,255,.035)}
 .jm-access-project strong{display:block;margin-bottom:6px}
 .jm-access-project .mini{margin:3px 0 8px}
-.jm-access-edit{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.jm-access-edit input{flex:1;min-width:190px;min-height:42px;border:1px solid #365373;background:#08172a;color:#fff;border-radius:9px;padding:8px 10px}
 @media(max-width:760px){.jm-access-layout{grid-template-columns:1fr}.jm-access-code-row code{font-size:15px}}
 </style>
 </head><body>
@@ -1309,7 +1307,7 @@ tbody tr:not(.budgetGroupRow),tbody tr:not(.budgetGroupRow) td{
 
 <div class="card" id="jm-acessos-clientes" style="margin-bottom:18px">
   <h3 style="margin:0 0 8px">🔐 Acesso do cliente ao site</h3>
-  <p class="muted" style="margin-bottom:14px">Selecione um cliente já cadastrado no orçamento. Gere o código individual e envie pelo WhatsApp. O cliente entra com CPF + código; os projetos fechados vinculados a esse CPF aparecem automaticamente.</p>
+  <p class="muted" style="margin-bottom:14px">Selecione um cliente já cadastrado no orçamento. Gere o código individual e envie pelo WhatsApp. O cliente entra com CPF + código; os projetos fechados vinculados a esse CPF aparecem automaticamente, com o andamento definido na aba Projetos.</p>
   <div class="jm-access-layout">
     <div class="field"><label for="jm-access-select">Cliente cadastrado (CPF)</label>
        <select id="jm-access-select"><option value="">Selecione um cliente…</option></select></div>
@@ -7291,22 +7289,13 @@ window.JM_DOCUMENTOS_V3_READY=true;
   function renderProjects(arr){
     const host=$('jm-access-projects');host.replaceChildren();
     const title=document.createElement('h4');title.textContent='Projetos disponibilizados ('+arr.length+')';title.style.marginTop='18px';host.appendChild(title);
-    if(!arr.length){const p=document.createElement('p');p.className='mini';p.textContent='Não há projetos fechados vinculados a esse CPF. Cadastre o código e feche o orçamento correspondente para publicar automaticamente.';host.appendChild(p);return;}
+    if(!arr.length){const p=document.createElement('p');p.className='mini';p.textContent='Não há projetos fechados vinculados a esse CPF. Gere o código de acesso e feche o orçamento para disponibilizar automaticamente.';host.appendChild(p);return;}
+    const hint=document.createElement('p');hint.className='mini';hint.textContent='O andamento é atualizado automaticamente pela situação do projeto na aba Projetos. Não precisa preencher uma segunda etapa.';host.appendChild(hint);
     for(const p of arr){
       const box=document.createElement('div');box.className='jm-access-project';
       const head=document.createElement('strong');head.textContent=p.titulo||'Projeto';box.appendChild(head);
-      const note=document.createElement('p');note.className='mini';note.textContent='Situação: '+(p.situacao||'Em andamento');box.appendChild(note);
-      const row=document.createElement('div');row.className='jm-access-edit';
-      const inp=document.createElement('input');inp.value=p.etapa||'';inp.maxLength=160;inp.setAttribute('aria-label','Etapa de '+(p.titulo||'projeto'));row.appendChild(inp);
-      const btn=document.createElement('button');btn.className='btn';btn.type='button';btn.textContent='Salvar etapa';row.appendChild(btn);
-      btn.addEventListener('click',async()=>{
-        if(!inp.value.trim())return feedback('Informe a etapa antes de salvar.');
-        btn.disabled=true;feedback('Atualizando etapa…');
-        try{const ok=await api('jm_portal_alterar_etapa',{p_orcamento_id:p.orcamento_id,p_etapa:inp.value.trim()});
-          feedback(ok?'Etapa atualizada.':'Projeto não encontrado.');await loadClient();
-        }catch(e){feedback('Erro: '+e.message)}finally{btn.disabled=false}
-      });
-      box.appendChild(row);host.appendChild(box);
+      const note=document.createElement('p');note.className='mini';note.textContent='Situação publicada: '+(p.situacao==='Ativo'?'Em andamento':(p.situacao||'Em andamento'));box.appendChild(note);
+      host.appendChild(box);
     }
   }
   $('jm-access-select').addEventListener('change',()=>{feedback('');loadClient()});
